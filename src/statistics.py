@@ -9,7 +9,8 @@ from numpy import median, zeros, arange, intersect1d, fft
 from matplotlib import pyplot
 from sys import argv, exit
 from scipy import meshgrid, stats
-import pyfits
+from astropy.io import fits 
+#import pyfits
 
 ###################################
 # CALCRMSCLIP
@@ -292,7 +293,8 @@ if __name__ == '__main__':
 	niter = int(float(argv[3]))
 
 	# Read the input image:
-	image = pyfits.open(ImageFile)
+	#image = pyfits.open(ImageFile)
+	image = fits.open(ImageFile)
 	imageheader = image[0].header
 	imagedata = image[0].data
 	image.close()

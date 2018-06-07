@@ -12,11 +12,12 @@ import fitsutils
 def create_zeroed_image(image):
 
     hdu = fits.open("{0}".format(image))
+    #hdu = fits.open("{0}".format(image), do_not_scale_image_data=True)
     Y_axis = hdu[0].header['NAXIS2']
     X_axis = hdu[0].header['NAXIS1']
     hdu.close()
 
-    array_of_zeros = np.zeros((Y_axis,X_axis))
+    array_of_zeros = np.zeros((Y_axis,X_axis), dtype='uint8')
 
     return array_of_zeros
 
@@ -40,7 +41,8 @@ if __name__ == '__main__':
 
     camera = argv[1]
 
-    bpmlist = glob("{0}/{0}_bpm.*.fits".format(camera))
+    bpmlist = glob("{0}/{0}_bpm.*.20180601.fits".format(camera))
+    bpmlist
 
     for bpm in bpmlist:
 
@@ -53,6 +55,10 @@ if __name__ == '__main__':
         final_bpm = final_bpm + retrieved_bpm
 
     #final_image[513,758] = 1 # extra bad pix for kb88
+    #final_bpm[891:1026,116] = 1 # extra bad pix for kb99
+    #final_bpm[1:1029,6] = 1 # bad column on kb81
+    #final_bpm[400:1029,587] = 1 # bad column on kb81
+    #final_bpm[486:1029,921] = 1 # bad column on kb81
     final_bpm[final_bpm > 0] = 1
     final_bpm[final_bpm < 0] = 0
 

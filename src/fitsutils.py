@@ -12,7 +12,8 @@ def outputFITS(imagedata,headerdict,filename):
     newhdu = fits.PrimaryHDU(imagedata)
     newhdulist = fits.HDUList([newhdu])
     for key,value in headerdict.items():
-      	newhdulist[0].header.update(key,value)
+      	#newhdulist[0].header.update(key,value)
+      	newhdulist[0].header.set(key,value)
     with warnings.catch_warnings():
       	warnings.simplefilter('ignore')
       	newhdulist.writeto(filename,clobber=True,output_verify='ignore')
