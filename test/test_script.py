@@ -21,6 +21,22 @@ class TestsProcessingUtilities(unittest.TestCase):
         bad_values = filtered_array[filtered_array > median + sigma_thresh]
         self.assertEqual(bad_values.size, 0)
 
+    def test_rectangle_detected(self):
+        pass
+
+class TestDirectorySettings(unittest.TestCase):
+
+    def test_empty_image_list(self):
+        pass # should fail with exception
+
+    def test_invalid_date(self):
+        pass # should fail with exception
+
+    def test_invalid_directory(self):
+        pass # should fail with exception
+
+
+
 if __name__ == '__main__':
     unittest.main()
 

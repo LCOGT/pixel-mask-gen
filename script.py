@@ -8,7 +8,7 @@ import time
 import datetime
 import logging
 import sys
-import functools
+import subprocess
 import pdb
 
 def setup_custom_logger(name):
@@ -20,12 +20,12 @@ def setup_custom_logger(name):
     logger = logging.getLogger(name)
     logger.addHandler(handler)
     logger.setLevel(logging.DEBUG)
-    #logger.addHandler(handler)
-
     return logger
-def locate_image_list():
-    """
 
+
+def retrieve_image_directory_information():
+    """
+    Parses the log file
     :return:
     """
     with open('config.yml') as yaml_file:
@@ -47,14 +47,18 @@ def locate_image_list():
         #image_list = [os.path.abspath(file) for file in os.listdir(image_folder)]
         image_list = [os.path.abspath(os.path.join(image_folder, filename)) for filename in os.listdir(image_folder)]
         #print("image list:")
+        prefixes_list = [directory_info['bias_prefix'], directory_info['dark_prefix'], directory_info['flats_prefix']]
+
+
 
         if len(image_list) < 1:
-            raise ValueError('No images found -- please check that path was correct.')
+            raise ValueError('No images found, check that path was correct.')
 
         else:
             logger.info("{} images found".format(len(image_list)))
 
-        return image_list
+        return (image_list, prefixes_list, directory_info['camera_prefix'])
+
 
 def extract_data_from_files(image_list, prefixes_array):
     """
@@ -74,6 +78,7 @@ def extract_data_from_files(image_list, prefixes_array):
             if image_filename.endswith("{0}.fits".format(prefix)):
                 image_file = astropy.io.fits.open(image_filename)
                 image_data = image_file[0].data
+                # shouldn't really reasssign this variable every time, but this property shouldn't change across cameras
                 rows, cols = image_data.shape
                 if (rows == 0) or (cols == 0):
                     logger.error("The image {0} has no data".format(image_filename))
@@ -90,7 +95,7 @@ def extract_data_from_files(image_list, prefixes_array):
                     # most once prefix can match
                     break
 
-    return (b_array, d_array, f_array) # return this in alphabetical order
+    return (b_array, d_array, f_array, rows, cols) # return this in alphabetical order
 
 def filter_individual(image_array, sigma_hi, sigma_low):
     mfiltered_array = astropy.stats.sigma_clip(data=image_array,\
@@ -361,21 +366,16 @@ if __name__ == '__main__':
     print("Sequence starting now.")
     logger = setup_custom_logger('pixel_mask_gen')
 
-    image_list = locate_image_list()
+    image_list, prefixes_list, camera_prefix = retrieve_image_directory_information()
     # manually hardcode prefix list for now?
-    bias_array, dark_array, flat_array = extract_data_from_files(image_list, ['b00','f00','d00'])
+    bias_array, dark_array, flat_array, rows, columns  = extract_data_from_files(image_list, prefixes_list)
     clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array, flat_array])
 
     # temporarily hardcode image size?
     #array_of_masks = generate_masks_from_bad_pixels([clean_bias_array, clean_dark_array, clean_flat_array], 2112, 3136)
-    """
-    for index, mask_array in enumerate(array_of_masks):
-        output_to_FITS(mask_array, {}, str(index) + '_bpm.fits')
-        
-    """
     final_bpm_list = combine_bad_pixel_locations([clean_bias_array, clean_dark_array, clean_flat_array])
-    final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, 2112, 3136)
-    output_to_FITS(final_bpm_mask, {}, "final_bpm.fits")
+    final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, rows, columns)
+    output_to_FITS(final_bpm_mask, {}, "{}_bpm.fits".format(camera_prefix))
 
 
     print("Sequence ended.")
