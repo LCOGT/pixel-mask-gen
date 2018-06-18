@@ -54,7 +54,9 @@ def extract_data_from_files(image_list, prefixes_array):
             if image_filename.endswith("{0}.fits".format(prefix)):
                 image_file = astropy.io.fits.open(image_filename)
                 image_data = image_file[0].data
+                x_size, y_size = image_data.shape
                 image_file.close()
+                print("x_size:", x_size, "y_size:", y_size, "for image: ", image_filename)
                 arr_string = prefix[0] + "_array"
                 eval(arr_string + '.append(image_data)') # example: b_array.append(image_data)
 
@@ -90,7 +92,7 @@ def run_median_filtering(images_arrays):
     dark_bpm_collection, flat_bpm_collection, bias_bpm_collection = [], [], []
 
     for index_cal_array, cal_array in enumerate(images_arrays):
-        for image_array in cal_array:
+        for index_image_array, image_array in enumerate(cal_array):
             mfiltered_array = astropy.stats.sigma_clip(data=image_array,\
                                     sigma_lower=sigma_low,\
                                     sigma_upper=sigma_hi)
@@ -100,34 +102,60 @@ def run_median_filtering(images_arrays):
 
             masked_indices = numpy.transpose(numpy.ma.getmask(mfiltered_array).nonzero())
 
+            print(len(masked_indices), "pixels failed sigma clipping on image #", index_image_array, "of the current type")
+
             if (index_cal_array == 0):
-                bias_bpm_collection.extend(masked_indices)
+                bias_bpm_collection.append(masked_indices)
 
             elif (index_cal_array == 1):
-                dark_bpm_collection.extend(masked_indices)
+                dark_bpm_collection.append(masked_indices)
 
             elif (index_cal_array == 2):
-                flat_bpm_collection.extend(masked_indices)
+                flat_bpm_collection.append(masked_indices)
 
 
     # once you have all the bad pixel indices from each image, separated by calibration type,
-    # see how often each bad pixel appears
-    pdb.set_trace()
+    # see how often each bad pixel appears, but to count frequency of appearance across images, you'll need to flatten
+    # the list
+    """
     bias_bpm_counter = collections.Counter(*bias_bpm_collection)
     dark_bpm_counter = collections.Counter(*dark_bpm_collection)
     flat_bpm_counter = collections.Counter(*flat_bpm_collection)
+    """
+    # a 1D array storing every coordinate that is marked as 'bad', in tuple form
+    bias_bpm_flattened, dark_bpm_flattened, flat_bpm_flattened = [], [], []
+    # TODO: Remove code reuse
+    for sublist in bias_bpm_collection:
+        for coords in sublist:
+            bias_bpm_flattened.append(tuple(coords))
+
+    for sublist in dark_bpm_collection:
+        for coords in sublist:
+            dark_bpm_flattened.append(tuple(coords))
+
+    for sublist in flat_bpm_collection:
+        for coords in sublist:
+            flat_bpm_flattened.append(tuple(coords))
+
+
+    bias_bpm_counter = collections.Counter(bias_bpm_flattened)
+    dark_bpm_counter = collections.Counter(dark_bpm_flattened)
+    flat_bpm_counter = collections.Counter(flat_bpm_flattened)
+
 
     # The threshold amount is threshold_pct * length of each array, any pixels appearing with threshold
     # equal to or higher than that are marked as bad
     # TODO: Remove the code reuse here
-    thresholded_bias_array = [value for (key, value) in bias_bpm_counter.items() if (value >= int(threshold) * len(bias_bpm_counter))]
-    thresholded_dark_array = [value for (key, value) in dark_bpm_counter.items() if (value >= int(threshold) * len(dark_bpm_counter))]
-    thresholded_flat_array = [value for (key, value) in flat_bpm_counter.items() if (value >= int(threshold) * len(flat_bpm_counter))]
+    thresholded_bias_array = [key for (key, value) in bias_bpm_counter.items() if (value >= (float(threshold)/100 * len(bias_bpm_collection)))]
+    thresholded_dark_array = [key for (key, value) in dark_bpm_counter.items() if (value >= (float(threshold)/100 * len(dark_bpm_collection)))]
+    thresholded_flat_array = [key for (key, value) in flat_bpm_counter.items() if (value >= (float(threshold)/100 * len(flat_bpm_collection)))]
+
+    #pdb.set_trace()
 
     return thresholded_bias_array, thresholded_dark_array, thresholded_flat_array
 
 
-def generate_mask_from_bad_pixels(bad_pixel_location_arrays, x_dimension, y_dimension):
+def generate_mask_from_bad_pixels(bad_pixel_location_arrays, x_dimension, y_dimension, debug=True):
     """
     Each array in the parameter given has the coordinates of all known-bad pixels. Use these to create 3 different masks (one for
     each calibration type) where the masks have True for bad pixels and false otherwise
@@ -136,10 +164,22 @@ def generate_mask_from_bad_pixels(bad_pixel_location_arrays, x_dimension, y_dime
     """
     array_masks = []
 
-    for bad_pixel_array in bad_pixel_location_arrays:
-        masked_array = numpy.zeros((y_dimension, x_dimension), dtype=bool)
-        masked_array[bad_pixel_array] = True
+    for index_bad_pixel_array, bad_pixel_array in enumerate(bad_pixel_location_arrays):
+        masked_array = numpy.zeros((x_dimension, y_dimension), dtype=bool)
+        #pdb.set_trace()
+        #masked_array[bad_pixel_array] = True
+        # Bad pixel array contains coordinates of all known bad pixels, so set these coordinates to true in the array
+        print(len(bad_pixel_array), "known-bad pixels found")
+        for coordinates in bad_pixel_array:
+            masked_array[coordinates] = True
+
         array_masks.append(masked_array)
+
+        if (debug == True):
+            file_path = "debug/{0}_bpm.txt".format(index_bad_pixel_array)
+            with open(file_path, 'a') as output:
+                output.write(''.join(map(str, bad_pixel_array)))
+            output.close()
 
 
     return array_masks
@@ -159,13 +199,15 @@ def output_to_FITS(image_data, header_dict, filename):
         raise BaseException("No data to write to Primary HDU.")
 
     else:
-        new_hdu = astropy.io.fits.PrimaryHDU(image_data)
+        new_hdu = astropy.io.fits.PrimaryHDU(image_data.astype(int))
+        print("writing array of size", image_data.shape, "to fits file. Array contains", image_data.sum(), "bad pixels in mask")
         new_hdu_list = astropy.io.fits.HDUList([new_hdu])
+
 
     for key, value in header_dict.items():
         new_hdu_list[0].header.set(key, value)
 
-        new_hdu_list.writeto(filename, clobber=True, output_verify='exception')
+    new_hdu_list.writeto(filename, overwrite=True, output_verify='exception',checksum=True)
 
     new_hdu_list.close()
 
@@ -237,9 +279,9 @@ if __name__ == '__main__':
     bias_array, dark_array, flat_array = extract_data_from_files(image_list, ['b00','f00','d00'])
     clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array, flat_array])
 
-    # temporary hardcode x and y axis limits?
-    array_of_masks = generate_mask_from_bad_pixels([clean_bias_array, clean_dark_array, clean_flat_array], 2000, 2000)
-    for index, mask_array in array_of_masks:
+    # temporarily hardcode image size?
+    array_of_masks = generate_mask_from_bad_pixels([clean_bias_array, clean_dark_array, clean_flat_array], 2112, 3136)
+    for index, mask_array in enumerate(array_of_masks):
         output_to_FITS(mask_array, {}, str(index) + '_bpm.fits')
 
 
