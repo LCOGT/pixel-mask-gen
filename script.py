@@ -10,7 +10,6 @@ import logging
 import sys
 import pdb
 
-
 def setup_custom_logger(name):
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
@@ -22,8 +21,7 @@ def setup_custom_logger(name):
     logger.setLevel(logging.DEBUG)
     return logger
 
-
-def retrieve_image_directory_information(config_file_location):
+def retrieve_image_directory_information(config_file_location, camera_identifier):
     """
     Parses the config.yml file to retrieve information about where the images will be located
     :param config_file_location: The relative path of the yaml file that gives the configuration info
@@ -49,7 +47,7 @@ def retrieve_image_directory_information(config_file_location):
         date_string = parse_config_file_date(directory_info)
 
         # Locate all the image files and how many there are
-        image_folder = os.path.join(directory_info['top_directory'], directory_info['camera_prefix'], date_string)
+        image_folder = os.path.join(directory_info['top_directory'], directory_info['camera_prefix'] + camera_identifier, date_string)
         # Once you have the image folder, check if it exists
 
         if os.path.isdir(image_folder):
@@ -58,7 +56,7 @@ def retrieve_image_directory_information(config_file_location):
         else:
             msg = "The image folder you requested: {} does not appear to exist.".format(image_folder)
             #logger.error(msg)
-            raise ValueError(msg)
+            raise OSError(msg)
 
         # Stores the absolute path of the images in a list
         image_list = [os.path.abspath(os.path.join(image_folder, filename)) for filename in os.listdir(image_folder)]
@@ -70,7 +68,7 @@ def retrieve_image_directory_information(config_file_location):
         else:
             logger.info("{} images found".format(len(image_list)))
 
-        return (image_list, prefixes_list, directory_info['camera_prefix'])
+        return (image_list, prefixes_list, directory_info['camera_prefix'] + camera_identifier)
 
 
 def extract_data_from_files(image_list, prefixes_array):
@@ -402,8 +400,28 @@ def parse_config_file_date(directory_info):
 if __name__ == '__main__':
     logger = setup_custom_logger('pixel_mask_gen')
 
-    image_list, prefixes_list, camera_prefix = retrieve_image_directory_information(sys.argv[1])
+    # once you have the camera prefix, decide which cameras you want to use. this just looks from 0 to <XY>
+    for identifier in range(0, 99):
+        camera_id_number = str(identifier).zfill(2)
+        try:
+            image_list, prefixes_list, full_camera_name = retrieve_image_directory_information(sys.argv[1], camera_id_number)
+            bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list, prefixes_list)
+            clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array, flat_array], sys.argv[1])
 
+            final_bpm_list = combine_bad_pixel_locations([clean_bias_array, clean_dark_array, clean_flat_array])
+
+            final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, rows, columns)
+
+            output_to_FITS(final_bpm_mask, image_header, "{}_bpm.fits".format(full_camera_name))
+
+            logger.info("Exiting.")
+
+        except OSError:
+            logger.warn("Unable to find any folders that contained the desired camera prefix and identifier ({0})".format(camera_id_number))
+
+            continue
+
+    '''
     bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list, prefixes_list)
 
     clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array, flat_array], sys.argv[1])
@@ -415,5 +433,6 @@ if __name__ == '__main__':
     output_to_FITS(final_bpm_mask, image_header, "{}_bpm.fits".format(camera_prefix))
 
     logging.info("End of file successfully reached.")
+    '''
 
 

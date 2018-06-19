@@ -1,7 +1,2 @@
---extra-index-url=http://buildsba.lco.gtn/python
---trusted-host buildsba.lco.gtn
-
-
-astropy
-
-numpy
+numpy==1.14
+astropy==3.0.3
