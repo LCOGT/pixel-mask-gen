@@ -10,6 +10,7 @@ import logging
 import sys
 import pdb
 
+
 def setup_custom_logger(name):
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
                                   datefmt='%Y-%m-%d %H:%M:%S')
@@ -22,15 +23,24 @@ def setup_custom_logger(name):
     return logger
 
 
-def retrieve_image_directory_information():
+def retrieve_image_directory_information(config_file_location):
     """
     Parses the config.yml file to retrieve information about where the images will be located
+    :param config_file_location: The relative path of the yaml file that gives the configuration info
     :return: (image_list: A list of absolute file paths representing the FITS images to filter,
                 prefixes_list: A list of prefixes corresponding to image calibration type (bias, dark, light),
                     camera_prefix: the camera designation, will search in this folder, and will be used to name
                     the output fits file (since one bad pixel mask matches up with every camera)
     """
-    with open('config.yml') as yaml_file:
+    if (os.path.exists(config_file_location)):
+        logger.info('Opening config file located at {}'.format(config_file_location))
+
+    else:
+        msg = 'Unable to locate file at {}'.format(config_file_location)
+        #logger.error(msg)
+        raise OSError(msg)
+
+    with open(config_file_location) as yaml_file:
         # Store as dictionary
         configData = yaml.safe_load(yaml_file)
         directory_info = configData['directories']
@@ -40,14 +50,22 @@ def retrieve_image_directory_information():
 
         # Locate all the image files and how many there are
         image_folder = os.path.join(directory_info['top_directory'], directory_info['camera_prefix'], date_string)
-        logger.info("Image folder is {}".format(image_folder))
+        # Once you have the image folder, check if it exists
+
+        if os.path.isdir(image_folder):
+            logger.info("Image folder is {}".format(image_folder))
+
+        else:
+            msg = "The image folder you requested: {} does not appear to exist.".format(image_folder)
+            #logger.error(msg)
+            raise ValueError(msg)
 
         # Stores the absolute path of the images in a list
         image_list = [os.path.abspath(os.path.join(image_folder, filename)) for filename in os.listdir(image_folder)]
         prefixes_list = [directory_info['bias_prefix'], directory_info['dark_prefix'], directory_info['flats_prefix']]
 
         if len(image_list) < 1:
-            raise ValueError('No images found, check that path was correct.')
+            raise ValueError("No images found, check that the 'top_level' path in {} was correct.".format(config_file_location))
 
         else:
             logger.info("{} images found".format(len(image_list)))
@@ -65,9 +83,16 @@ def extract_data_from_files(image_list, prefixes_array):
 
     (bias|dark|flat) array: a list of numpy arrays, each numpy array represents one image
     rows and cols are the sizes of the images
+
+    image_header: the image header stored from the last image
     """
 
     f_array, d_array, b_array = [], [], []
+
+    if len(image_list) < 1:
+        msg = "No images were passed in, unable to extract data."
+        #logger.error(msg)
+        raise ValueError(msg)
 
     for image_filename in image_list:
         # check which prefix the filename ends with, then, the first letter of the matching prefix
@@ -81,7 +106,7 @@ def extract_data_from_files(image_list, prefixes_array):
                 # image headers also wouldn't change across cameras?
                 image_header = image_file[0].header
                 if (rows == 0) or (cols == 0):
-                    logger.error("The image {0} has no data".format(image_filename))
+                    #logger.error("The image {0} has no data".format(image_filename))
                     raise ValueError("The image you are trying to read has no data!")
 
                 else:
@@ -107,6 +132,7 @@ def filter_individual(image_array, sigma_hi, sigma_low):
                 masked_indices: the coordinates (x,y) that were masked by the median filter,
                     percentage_mask: the percentage of pixels that were masked by the median filter)
     """
+
     mfiltered_array = astropy.stats.sigma_clip(data=image_array,\
                                     sigma_lower=sigma_low,\
                                     sigma_upper=sigma_hi)
@@ -118,7 +144,7 @@ def filter_individual(image_array, sigma_hi, sigma_low):
     return (mfiltered_array, masked_indices, percentage_masked)
 
 
-def run_median_filtering(images_arrays):
+def run_median_filtering(images_arrays, config_file_location):
     """
     Once you have a list of all the images (where each image is a numpy array), you are now ready to
     apply the proper median filtering on them
@@ -132,14 +158,13 @@ def run_median_filtering(images_arrays):
     were masked. At the end, use the indices that appeared in EVERY mask (e.g. only mark a pixel 
     as bad if it was filtered in X percentage of images)
     """
-    with open('config.yml') as yaml_file:
+    with open(config_file_location) as yaml_file:
         configData = yaml.safe_load(yaml_file)
         statistics_info = configData['statistics']
         sigma_hi = statistics_info['sigma_high']
         sigma_low = statistics_info['sigma_low']
         threshold = statistics_info['threshold']
         max_pct_removed = statistics_info['max_pct_removed']
-
 
     # Each object below is list of arrays, where each array will contains the locations of bad pixels
     dark_bpm_collection, flat_bpm_collection, bias_bpm_collection = [], [], []
@@ -252,7 +277,7 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
             final_bad_pixel_set.add(coords)
 
     # As a sanity check, print the list of coordinates into a text file for later examination
-    final_file_path = 'debug/combined_bpm.txt'
+    final_file_path = 'debug/combined_bpm_list.txt'
     with open(final_file_path, 'w') as output:
         output.write(''.join(map(str, final_bad_pixel_set)))
         output.close()
@@ -270,10 +295,6 @@ def test_adjacent_pixels(bad_pixel_list):
     max_neighboring_bad_pixels = 0
 
     for (row, col) in bad_pixel_list:
-        """
-        if any((r, c) in bad_pixel_list for (r,c) in [(row,col-1), (row,col+1), (row-1, col), (row+1,col)]):
-            return True
-        """
         # count the number of bad pixels that are adjacent to each other
         adjacent_bad_pixel_count = sum((r, c) in bad_pixel_list for (r,c) in [(row,col-1), (row,col+1), (row-1, col), (row+1,col)])
         if adjacent_bad_pixel_count > max_neighboring_bad_pixels:
@@ -293,20 +314,34 @@ def output_to_FITS(image_data, header_dict, filename):
     # See: https://fits.gsfc.nasa.gov/fits_primer.html for info about FITS
 
     if image_data.size < 1:
-        raise BaseException("No data to write to Primary HDU.")
+        raise ValueError("No data to write to Primary HDU.")
 
     else:
-        new_hdu = astropy.io.fits.PrimaryHDU(image_data.astype(int))
-        logging.info("Writing array of size {0} to .fits file; array contains {1} bad pixels in mask.".format(image_data.shape, image_data.sum()))
+        new_hdu = astropy.io.fits.PrimaryHDU(image_data.astype(numpy.uint8))
+        logger.info("Writing array of size {0} to file; array contains {1} bad pixels in mask.".format(image_data.shape, image_data.sum()))
         new_hdu_list = astropy.io.fits.HDUList([new_hdu])
-
 
     for key, value in header_dict.items():
         new_hdu_list[0].header.set(key, value)
 
-    # Add the current date to the filename so that we know when the mask was generated
     todays_date = datetime.datetime.today().strftime("%Y%m%d")
+
+
+    # For debugging purposes, write the mask and the header file into a text file
+    final_bpm_txtfile_path = os.path.join('debug', todays_date + "-" + filename + ".txt")
+
+    with open(str(final_bpm_txtfile_path), 'w') as final_bpm_txtfile:
+        final_bpm_txtfile.write(''.join(map(str, [coords for coords in image_data])))
+        final_bpm_txtfile.write('==========')
+        final_bpm_txtfile.write('HEADERS\n')
+        header_string = ''
+        for key, value in header_dict.items():
+            final_bpm_txtfile.write("key: {0}, value: {1}\n".format(key, value))
+        final_bpm_txtfile.write(header_string)
+        final_bpm_txtfile.close()
+
     new_hdu_list.writeto(todays_date + "-" + filename, overwrite=True, output_verify='exception',checksum=True)
+
 
     new_hdu_list.close()
 
@@ -341,8 +376,7 @@ def parse_config_file_date(directory_info):
         try:
             time.strptime(directory_info['date']['exact'], '%Y%m%d')
         except ValueError:
-            # TODO: Replace with logging/warning
-            print("Error parsing the exact date given from config.yml. Reverting to yesterday's date.")
+            logger.error("Error parsing the exact date given from configuration file. Reverting to yesterday's date.")
 
         finally: # Revert to yesterday's date
             return (datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
@@ -361,19 +395,18 @@ def parse_config_file_date(directory_info):
 
         else:
             # TODO: Replace with logging/warning
-            logger.info("Invalid relative date in config.yml, reverting to yesterday's date.")
+            logger.info("Invalid relative date in configuration file, reverting to yesterday's date.")
             return (datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
 
 
 if __name__ == '__main__':
-    print("Sequence starting now.")
     logger = setup_custom_logger('pixel_mask_gen')
 
-    image_list, prefixes_list, camera_prefix = retrieve_image_directory_information()
+    image_list, prefixes_list, camera_prefix = retrieve_image_directory_information(sys.argv[1])
 
     bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list, prefixes_list)
 
-    clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array, flat_array])
+    clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array, flat_array], sys.argv[1])
 
     final_bpm_list = combine_bad_pixel_locations([clean_bias_array, clean_dark_array, clean_flat_array])
 
@@ -381,6 +414,6 @@ if __name__ == '__main__':
 
     output_to_FITS(final_bpm_mask, image_header, "{}_bpm.fits".format(camera_prefix))
 
-    print("Sequence ended.")
+    logging.info("End of file successfully reached.")
 
 
