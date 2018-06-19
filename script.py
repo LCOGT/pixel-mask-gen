@@ -8,7 +8,6 @@ import time
 import datetime
 import logging
 import sys
-import subprocess
 import pdb
 
 def setup_custom_logger(name):
@@ -79,6 +78,8 @@ def extract_data_from_files(image_list, prefixes_array):
                 image_data = image_file[0].data
                 # bad practice to reasssign this variable every time, but this property shouldn't change across cameras
                 rows, cols = image_data.shape
+                # image headers also wouldn't change across cameras?
+                image_header = image_file[0].header
                 if (rows == 0) or (cols == 0):
                     logger.error("The image {0} has no data".format(image_filename))
                     raise ValueError("The image you are trying to read has no data!")
@@ -94,7 +95,7 @@ def extract_data_from_files(image_list, prefixes_array):
                     break
 
     # return the arrays in alphabetical order
-    return (b_array, d_array, f_array, rows, cols)
+    return (b_array, d_array, f_array, image_header, rows, cols)
 
 def filter_individual(image_array, sigma_hi, sigma_low):
     """
@@ -169,6 +170,8 @@ def run_median_filtering(images_arrays):
                 flat_bpm_collection.append(masked_indices)
 
 
+            # once you have the masked indices, search if any are adjacent to each other
+
     # once you have all the bad pixel indices from each image, separated by calibration type,see how often each bad
     # pixel appears, but to count frequency of appearance across images, you'll need to flatten the list
     # a 1D array storing every coordinate that is marked as 'bad', in tuple form
@@ -231,6 +234,18 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
             output.write(''.join(map(str, arr)))
             output.close()
 
+        # If the array contains bad pixels that are adjacent, flag it
+        neighboring_bad_pixels = test_adjacent_pixels(arr)
+        msg = "{0} neighboring bad pixels were found.".format(neighboring_bad_pixels)
+        if neighboring_bad_pixels < 1:
+            logger.info(msg)
+
+        elif neighboring_bad_pixels == 1:
+            logger.warn(msg + "Potentially review images")
+
+        else:
+            logger.error(msg + "Review images now, image mask is corrupt")
+
     final_bad_pixel_set = set()
     for subarray in arrays_of_bad_pixels:
         for coords in subarray:
@@ -243,6 +258,28 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
         output.close()
 
     return final_bad_pixel_set
+
+def test_adjacent_pixels(bad_pixel_list):
+    """
+    Test if adjacent pixels were marked as 'bad', this indicates some irregular activity, since the probability of this
+    happening naturally is very low
+    :param indiv_pixel_mask: An array of coordinates where each coordinate was the pixel that was marked as bad
+    :return: The number of bad pixels that were adjacent to each other
+    """
+
+    max_neighboring_bad_pixels = 0
+
+    for (row, col) in bad_pixel_list:
+        """
+        if any((r, c) in bad_pixel_list for (r,c) in [(row,col-1), (row,col+1), (row-1, col), (row+1,col)]):
+            return True
+        """
+        # count the number of bad pixels that are adjacent to each other
+        adjacent_bad_pixel_count = sum((r, c) in bad_pixel_list for (r,c) in [(row,col-1), (row,col+1), (row-1, col), (row+1,col)])
+        if adjacent_bad_pixel_count > max_neighboring_bad_pixels:
+            max_neighboring_bad_pixels = adjacent_bad_pixel_count
+
+    return max_neighboring_bad_pixels
 
 
 def output_to_FITS(image_data, header_dict, filename):
@@ -260,7 +297,6 @@ def output_to_FITS(image_data, header_dict, filename):
 
     else:
         new_hdu = astropy.io.fits.PrimaryHDU(image_data.astype(int))
-        #print("writing array of size", image_data.shape, "to fits file. Array contains", image_data.sum(), "bad pixels in mask")
         logging.info("Writing array of size {0} to .fits file; array contains {1} bad pixels in mask.".format(image_data.shape, image_data.sum()))
         new_hdu_list = astropy.io.fits.HDUList([new_hdu])
 
@@ -268,7 +304,9 @@ def output_to_FITS(image_data, header_dict, filename):
     for key, value in header_dict.items():
         new_hdu_list[0].header.set(key, value)
 
-    new_hdu_list.writeto(filename, overwrite=True, output_verify='exception',checksum=True)
+    # Add the current date to the filename so that we know when the mask was generated
+    todays_date = datetime.datetime.today().strftime("%Y%m%d")
+    new_hdu_list.writeto(todays_date + "-" + filename, overwrite=True, output_verify='exception',checksum=True)
 
     new_hdu_list.close()
 
@@ -333,7 +371,7 @@ if __name__ == '__main__':
 
     image_list, prefixes_list, camera_prefix = retrieve_image_directory_information()
 
-    bias_array, dark_array, flat_array, rows, columns  = extract_data_from_files(image_list, prefixes_list)
+    bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list, prefixes_list)
 
     clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array, flat_array])
 
@@ -341,7 +379,7 @@ if __name__ == '__main__':
 
     final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, rows, columns)
 
-    output_to_FITS(final_bpm_mask, {}, "{}_bpm.fits".format(camera_prefix))
+    output_to_FITS(final_bpm_mask, image_header, "{}_bpm.fits".format(camera_prefix))
 
     print("Sequence ended.")
 
