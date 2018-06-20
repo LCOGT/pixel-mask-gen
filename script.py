@@ -21,14 +21,16 @@ def setup_custom_logger(name):
     return logger
 
 def retrieve_image_directory_information(config_file_location, camera_identifier):
-    """
-    Parses the config.yml file to retrieve information about where the images will be located
+    """Parses the config.yml file to retrieve information about where the images will be located
+
     :param config_file_location: The relative path of the yaml file that gives the configuration info
-    :return: (image_list: A list of absolute file paths representing the FITS images to filter,
-                prefixes_list: A list of prefixes corresponding to image calibration type (bias, dark, light),
-                    camera_prefix: the camera designation, will search in this folder, and will be used to name
-                    the output fits file (since one bad pixel mask matches up with every camera)
+    :return: image_list A list of absolute file paths representing the FITS images to filter, \
+    prefixes_list A list of prefixes corresponding to image calibration type (bias, dark, light), \
+    camera_prefix the camera designation, will search in this folder, and will be used to name \
+    the output fits file (since one bad pixel mask matches up with every camera)
+
     """
+
     if (os.path.exists(config_file_location)):
         logger.info('Opening config file located at {}'.format(config_file_location))
 
@@ -71,17 +73,18 @@ def retrieve_image_directory_information(config_file_location, camera_identifier
 
 
 def extract_data_from_files(image_list, prefixes_array):
-    """
-    Takes in a list of FITS filenames, converts FITS data into numpy arrays, and then stores that FITS info according
-    to what calibration type the image corresponds to
+    """Takes in a list of FITS filenames, converts FITS data into numpy arrays, and then stores that FITS info according
+    to what calibration type the image corresponds to.
+
     :param image_list: A list of absolute filenames for images to search for.
     :param prefixes_array: An array of prefixes from the config.yml file that denote bias,dark,light
     :return:
 
-    (bias|dark|flat) array: a list of numpy arrays, each numpy array represents one image
+    (bias|dark|flat) array: a list of numpy arrays, each numpy array represents one image \
     rows and cols are the sizes of the images
 
     image_header: the image header stored from the last image
+
     """
 
     f_array, d_array, b_array = [], [], []
@@ -120,14 +123,15 @@ def extract_data_from_files(image_list, prefixes_array):
     return (b_array, d_array, f_array, image_header, rows, cols)
 
 def filter_individual(image_array, sigma_hi, sigma_low):
-    """
-    Applies the median filter to one image, and returns back diagnostic information
+    """Applies the median filter to one image, and returns back diagnostic information.
+
     :param image_array: A numpy array that represents the FITS file image
     :param sigma_hi: The upper limit in standard deviations to filter on
     :param sigma_low: The lower limit in standard deviations to filter on
-    :return: (mfiltered_array: a numpy array that has been median filtered (the filtered entries are masked),
-                masked_indices: the coordinates (x,y) that were masked by the median filter,
-                    percentage_mask: the percentage of pixels that were masked by the median filter)
+    :return: (mfiltered_array; a numpy array that has been median filtered (the filtered entries are masked), \
+    masked_indices; the coordinates (x,y) that were masked by the median filter,\
+    percentage_mask; the percentage of pixels that were masked by the median filter)
+
     """
 
     mfiltered_array = astropy.stats.sigma_clip(data=image_array,\
@@ -142,12 +146,13 @@ def filter_individual(image_array, sigma_hi, sigma_low):
 
 
 def run_median_filtering(images_arrays, config_file_location):
-    """
-    Once you have a list of all the images (where each image is a numpy array), you are now ready to
-    apply the proper median filtering on them
-    :param images_arrays: A list of three lists (bias, dark, flat) where each array contains a list of numpy arrays that each
-    represent one image
+    """Once you have a list of all the images (where each image is a numpy array), you are now ready to
+    apply the proper median filtering on them.
+
+    :param images_arrays: A list of three lists (bias, dark, flat) where each array contains a list of numpy arrays \
+    that each represent one image
     :return: A list of lists, where each sublist contains all pixels that were marked as 'known-bad'
+
     """
 
     """
@@ -171,16 +176,21 @@ def run_median_filtering(images_arrays, config_file_location):
 
             filtered_array, masked_indices, percentage_masked = filter_individual(image_array, sigma_hi, sigma_low)
 
-            logger.info("{0} ({1}% of total) pixels failed the sigma clipping on image #{2}".format(len(masked_indices), percentage_masked, index_image_array))
+            logger.info("{0} ({1}% of total) pixels failed the sigma clipping on image #{2}".format(len(masked_indices),
+                                                                                                    percentage_masked,
+                                                                                                    index_image_array))
 
             # make sure too many pixels arent getting filtered, but if they are, increase the minimum std dev that you
             # allow
             while (percentage_masked >= max_pct_removed):
-                logger.info("Too many pixels failed sigma clipping. Increasing sigma values from {0} to {1} (low) and from {2} to {3} (high)".format(sigma_low, sigma_low +1, sigma_hi, sigma_hi + 1))
+                logger.info("Too many pixels failed sigma clipping. Increasing sigma values from {0} to {1} (low) and \
+                from {2} to {3} (high)".format(sigma_low, sigma_low +1, sigma_hi, sigma_hi + 1))
                 sigma_hi += 1
                 sigma_low += 1
                 filtered_array, masked_indices, percentage_masked = filter_individual(image_array, sigma_hi,sigma_low)
-                logger.info("{0} ({1}% of total) pixels failed the sigma clipping on image #{2}".format(len(masked_indices), percentage_masked, index_image_array))
+                logger.info("{0} ({1}% of total) pixels failed the sigma clipping on image #{2}".format(len(masked_indices),
+                                                                                                        percentage_masked,
+                                                                                                        index_image_array))
 
             if (index_cal_array == 0):
                 bias_bpm_collection.append(masked_indices)
@@ -223,16 +233,20 @@ def run_median_filtering(images_arrays, config_file_location):
 
 
 def generate_mask_from_bad_pixels(bad_pixel_location_array, x_dimension, y_dimension):
-    """
-    The array in the parameter given has the coordinates of all known-bad pixels. Use these to create a mask where the masks have True for bad pixels and false otherwise
+    """The array in the parameter given has the coordinates of all known-bad pixels. Use these to create a mask \
+    where the masks have True for bad pixels and false otherwise
+
     :param bad_pixel_location_array: An array containing the coordinates (stored as tuples) of all the known-bad pixels
-    :return: masked_array: a representation of the bad pixel coordinates a boolean array, where known-bad pixels are
+
+    :return: masked_array, a representation of the bad pixel coordinates a boolean array, where known-bad pixels are\
     marked by true and safe pixels are marked as false
+
     """
 
     masked_array = numpy.zeros((x_dimension, y_dimension), dtype=bool)
     size = x_dimension * y_dimension
-    logger.info("Final count: {0} ({1}% of total) bad pixels detected.".format(len(bad_pixel_location_array), (len(bad_pixel_location_array) / size) * 100))
+    logger.info("Final count: {0} ({1}% of total) bad pixels detected.".format(len(bad_pixel_location_array),
+                                                                               (len(bad_pixel_location_array) / size) * 100))
     for coordinates in bad_pixel_location_array:
         masked_array[coordinates] = True
 
@@ -240,11 +254,12 @@ def generate_mask_from_bad_pixels(bad_pixel_location_array, x_dimension, y_dimen
 
 
 def combine_bad_pixel_locations(arrays_of_bad_pixels):
-    """
-    Given an array of 3 arrays, (where each inner array contains a list of pixels that are known bad), take the set union
+    """Given an array of 3 arrays, (where each inner array contains a list of pixels that are known bad), take the set union
+
     :param array_of_masks:
-    :return: final_bad_pixel_set: a *set* that describes every bad pixel that appeared, across all calibration types --
+    :return: a *set* that describes every bad pixel that appeared, across all calibration types --\
     including bias, dark, and flats
+
     """
     for index, arr in enumerate(arrays_of_bad_pixels):
         logger.info("{0} bad pixels were detected for calibration type #{1}".format(len(arr), index))
@@ -279,18 +294,20 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
     return final_bad_pixel_set
 
 def test_adjacent_pixels(bad_pixel_list):
-    """
-    Test if adjacent pixels were marked as 'bad', this indicates some irregular activity, since the probability of this
-    happening naturally is very low
+    """Test if adjacent pixels were marked as 'bad', this indicates some irregular activity, since the probability of \
+    this happening naturally is very low
+
     :param indiv_pixel_mask: An array of coordinates where each coordinate was the pixel that was marked as bad
     :return: The number of bad pixels that were adjacent to each other
+
     """
 
     max_neighboring_bad_pixels = 0
 
     for (row, col) in bad_pixel_list:
         # count the number of bad pixels that are adjacent to each other
-        adjacent_bad_pixel_count = sum((r, c) in bad_pixel_list for (r,c) in [(row,col-1), (row,col+1), (row-1, col), (row+1,col)])
+        adjacent_bad_pixel_count = sum((r, c) in bad_pixel_list for (r,c) in [(row,col-1), (row,col+1), (row-1, col),
+                                                                              (row+1,col)])
         if adjacent_bad_pixel_count > max_neighboring_bad_pixels:
             max_neighboring_bad_pixels = adjacent_bad_pixel_count
 
@@ -298,12 +315,13 @@ def test_adjacent_pixels(bad_pixel_list):
 
 
 def output_to_FITS(image_data, header_dict, filename):
-    """
-    Generates a FITS v4 file from image data.
+    """Generates a FITS v4 file from image data.
+
     :param image_data: A numpy array, will be used for the primary header.
     :param header_dict: A dictionary used for the header data unit key/value pairs.
     :param filename: The destination file name for the FITS file.
     :return: None
+
     """
     # See: https://fits.gsfc.nasa.gov/fits_primer.html for info about FITS
 
@@ -312,7 +330,8 @@ def output_to_FITS(image_data, header_dict, filename):
 
     else:
         new_hdu = astropy.io.fits.PrimaryHDU(image_data.astype(numpy.uint8))
-        logger.info("Writing array of size {0} to file; array contains {1} bad pixels in mask.".format(image_data.shape, image_data.sum()))
+        logger.info("Writing array of size {0} to file; array contains {1} bad pixels in mask.".format(image_data.shape,
+                                                                                                       image_data.sum()))
         new_hdu_list = astropy.io.fits.HDUList([new_hdu])
 
     for key, value in header_dict.items():
@@ -344,13 +363,13 @@ def output_to_FITS(image_data, header_dict, filename):
 
 
 def get_last_date_of_unit(todays_date, string):
-    """
-    Returns the latest date that falls within the last month or week.
-    For example, if today is Thursday, June 7th, 2018, then get_last_date_of_unit(week) will return
+    """Returns the latest date that falls within the last month or week.
+    For example, if today is Thursday, June 7th, 2018, then get_last_date_of_unit(week) will return \
     the end of last week, which was Saturday, June 2nd, 2018.
     :param todays_date: A datetime object representing today's date.
     :param string: 'month','year','week'
     :return: A datetime string
+
     """
     if string == 'week':
         return str(todays_date - datetime.timedelta(days=(todays_date.isoweekday() + 1)))
@@ -362,9 +381,12 @@ def get_last_date_of_unit(todays_date, string):
         return str(datetime.date(year=(todays_date.year - 1), month=12, day=31))
 
 def parse_config_file_date(directory_info):
-    """
+    """Takes in a dictionary object representing the information from the YML file for configuration and returns\
+    a string representation of the date that was requested.
+
     :param directory_info: A dictionary representation of the 'directories' node in the YML file
     :return: An ISO-8601 string representation (YYYMMDD) that will tell the program what directory to use
+
     """
     VALID_RELATIVE_DATES = ['yesterday', 'last_month', 'last_week']
 
@@ -402,9 +424,14 @@ if __name__ == '__main__':
     for identifier in range(0, 99):
         camera_id_number = str(identifier).zfill(2)
         try:
-            image_list, prefixes_list, full_camera_name = retrieve_image_directory_information(sys.argv[1], camera_id_number)
-            bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list, prefixes_list)
-            clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array, flat_array], sys.argv[1])
+            image_list, prefixes_list, full_camera_name = retrieve_image_directory_information(sys.argv[1],
+                                                                                               camera_id_number)
+
+            bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list,
+                                                                                                       prefixes_list)
+
+            clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array,
+                                                                                         flat_array], sys.argv[1])
 
             final_bpm_list = combine_bad_pixel_locations([clean_bias_array, clean_dark_array, clean_flat_array])
 
