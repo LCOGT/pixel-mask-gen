@@ -60,7 +60,8 @@ def retrieve_image_directory_information(config_file_location, camera_identifier
             raise OSError(msg)
 
         # Stores the absolute path of the images in a list
-        image_list = [os.path.abspath(os.path.join(image_folder, filename)) for filename in os.listdir(image_folder)]
+        image_list = [os.path.abspath(os.path.join(image_folder, filename)) for filename in os.listdir(image_folder) if \
+                      os.path.isfile(os.path.abspath(os.path.join(image_folder, filename)))]
         prefixes_list = [directory_info['bias_prefix'], directory_info['dark_prefix'], directory_info['flats_prefix']]
 
         if len(image_list) < 1:
@@ -101,7 +102,7 @@ def extract_data_from_files(image_list, prefixes_array):
             if image_filename.endswith("{0}.fits".format(prefix)):
                 image_file = astropy.io.fits.open(image_filename)
                 image_data = image_file[0].data
-                # bad practice to reasssign this variable every time, but this property shouldn't change across cameras
+                # bad practice to reassign this variable every time, but this property shouldn't change across cameras
                 rows, cols = image_data.shape
                 # image headers also wouldn't change across cameras?
                 image_header = image_file[0].header
