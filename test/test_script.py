@@ -49,7 +49,7 @@ class TestDirectorySettings(unittest.TestCase):
 
     def test_invalid_config_file(self):
         with self.assertRaises(OSError):
-            script.retrieve_image_directory_information('nonexistent_file.yml')
+            script.retrieve_image_directory_information('nonexistent_file.yml', '69')
 
 
 if __name__ == '__main__':

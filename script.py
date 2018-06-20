@@ -11,8 +11,7 @@ import sys
 import pdb
 
 def setup_custom_logger(name):
-    formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',
-                                  datefmt='%Y-%m-%d %H:%M:%S')
+    formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
     handler = logging.StreamHandler(sys.stdout)
     handler.setFormatter(formatter)
     handler.setLevel(logging.DEBUG)
@@ -192,9 +191,6 @@ def run_median_filtering(images_arrays, config_file_location):
             elif (index_cal_array == 2):
                 flat_bpm_collection.append(masked_indices)
 
-
-            # once you have the masked indices, search if any are adjacent to each other
-
     # once you have all the bad pixel indices from each image, separated by calibration type,see how often each bad
     # pixel appears, but to count frequency of appearance across images, you'll need to flatten the list
     # a 1D array storing every coordinate that is marked as 'bad', in tuple form
@@ -320,6 +316,9 @@ def output_to_FITS(image_data, header_dict, filename):
         new_hdu_list = astropy.io.fits.HDUList([new_hdu])
 
     for key, value in header_dict.items():
+        if key == 'OBSTYPE':
+            # needed so that Banzai can recognize the image as a bad pixel mask
+            new_hdu_list[0].header.set(key, 'BPM')
         new_hdu_list[0].header.set(key, value)
 
     todays_date = datetime.datetime.today().strftime("%Y%m%d")
@@ -392,7 +391,6 @@ def parse_config_file_date(directory_info):
                 return get_last_date_of_unit(datetime.datetime.today().strftime('%Y%m%d'), 'month')
 
         else:
-            # TODO: Replace with logging/warning
             logger.info("Invalid relative date in configuration file, reverting to yesterday's date.")
             return (datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
 
@@ -420,19 +418,5 @@ if __name__ == '__main__':
             logger.warn("Unable to find any folders that contained the desired camera prefix and identifier ({0})".format(camera_id_number))
 
             continue
-
-    '''
-    bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list, prefixes_list)
-
-    clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array, flat_array], sys.argv[1])
-
-    final_bpm_list = combine_bad_pixel_locations([clean_bias_array, clean_dark_array, clean_flat_array])
-
-    final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, rows, columns)
-
-    output_to_FITS(final_bpm_mask, image_header, "{}_bpm.fits".format(camera_prefix))
-
-    logging.info("End of file successfully reached.")
-    '''
 
 
