@@ -10,6 +10,32 @@ import logging
 import sys
 import pdb
 
+def main(arg1):
+    for identifier in range(0, 99):
+        camera_id_number = str(identifier).zfill(2)
+        try:
+            image_list, prefixes_list, full_camera_name = retrieve_image_directory_information(arg1,
+                                                                                               camera_id_number)
+
+            bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list,
+                                                                                                       prefixes_list)
+
+            clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array,
+                                                                                         flat_array], sys.argv[1])
+
+            final_bpm_list = combine_bad_pixel_locations([clean_bias_array, clean_dark_array, clean_flat_array])
+
+            final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, rows, columns)
+
+            output_to_FITS(final_bpm_mask, image_header, "{}_bpm.fits".format(full_camera_name))
+
+            logger.info("Exiting.")
+
+        except OSError:
+            logger.warn("Unable to find any folders that contained the desired camera prefix and identifier ({0})".format(camera_id_number))
+
+            continue
+
 def setup_custom_logger(name):
     formatter = logging.Formatter(fmt='%(asctime)s %(levelname)-8s %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
     handler = logging.StreamHandler(sys.stdout)
@@ -42,6 +68,13 @@ def retrieve_image_directory_information(config_file_location, camera_identifier
     with open(config_file_location) as yaml_file:
         # Store as dictionary
         configData = yaml.safe_load(yaml_file)
+
+        if (configData is None):
+            raise ValueError('Yaml file exists but appears to be empty.')
+
+        if (len(configData) <= 1):
+            raise ValueError('Yaml file exists but was incorrectly parsed, please check that it is valid.')
+
         directory_info = configData['directories']
 
         # Get the latest date string to use.
@@ -391,7 +424,9 @@ def parse_config_file_date(directory_info):
     """
     VALID_RELATIVE_DATES = ['yesterday', 'last_month', 'last_week']
 
-    if directory_info['date']['exact'] == 'true':
+    logger.info("Directory info received was: {0}".format(directory_info))
+
+    if directory_info['date']['exact'] != False:
         # Convert the datetime string to a datetime object, and see if theres an error
         try:
             time.strptime(directory_info['date']['exact'], '%Y%m%d')
@@ -399,7 +434,7 @@ def parse_config_file_date(directory_info):
             logger.error("Error parsing the exact date given from configuration file. Reverting to yesterday's date.")
 
         finally: # Revert to yesterday's date
-            return (datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
+            return (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
 
     else:
         if directory_info['date']['relative'] in VALID_RELATIVE_DATES:
@@ -415,36 +450,11 @@ def parse_config_file_date(directory_info):
 
         else:
             logger.info("Invalid relative date in configuration file, reverting to yesterday's date.")
-            return (datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
+            return (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
 
+logger = setup_custom_logger('pixel_mask_gen')
 
 if __name__ == '__main__':
-    logger = setup_custom_logger('pixel_mask_gen')
-
     # once you have the camera prefix, decide which cameras you want to use. this just looks from 0 to <XY>
-    for identifier in range(0, 99):
-        camera_id_number = str(identifier).zfill(2)
-        try:
-            image_list, prefixes_list, full_camera_name = retrieve_image_directory_information(sys.argv[1],
-                                                                                               camera_id_number)
-
-            bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list,
-                                                                                                       prefixes_list)
-
-            clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array,
-                                                                                         flat_array], sys.argv[1])
-
-            final_bpm_list = combine_bad_pixel_locations([clean_bias_array, clean_dark_array, clean_flat_array])
-
-            final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, rows, columns)
-
-            output_to_FITS(final_bpm_mask, image_header, "{}_bpm.fits".format(full_camera_name))
-
-            logger.info("Exiting.")
-
-        except OSError:
-            logger.warn("Unable to find any folders that contained the desired camera prefix and identifier ({0})".format(camera_id_number))
-
-            continue
-
+    main(sys.argv[1])
 
