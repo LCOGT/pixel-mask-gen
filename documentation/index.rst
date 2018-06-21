@@ -15,6 +15,13 @@ Welcome to pixel-mask-gen's documentation!
 
 .. automodule:: script
     :members:
+    :show-inheritance:
+
+.. automodule:: test.test_script
+    :members:
+    :show-inheritance:
+
+
 
 
 

@@ -1,3 +1,4 @@
-.. include:: ../README.md
-Sphinx Auto-generated README
-****************************
+README (parsed from README.md)
+==============================
+.. mdinclude:: ../README.md
+

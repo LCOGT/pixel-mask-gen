@@ -118,23 +118,13 @@ class TestConfigurationFileIssues(unittest.TestCase):
 
     def test_empty_config_file_raises_error(self):
         # Create a fake empty yml file, then delete it
-        ''' factored out
-        fake_filename = 'test/config.yml'
-        subprocess.run(["touch", fake_filename])
-        '''
         # the error message has to say something like 'empty'
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex=re.compile(r'empty')):
             script.main(self.fake_config_filename)
 
-        #subprocess.run(['rm', self.fake_config_filename])
 
     def test_invalid_yaml_structure_raises_error(self):
         # Create a yaml file that just contains one blank dictionary
-        ''' factored out
-        fake_filename = 'test/config.yml'
-        subprocess.run(["touch", fake_filename])
-        '''
-
         fake_data = {}
         with open(self.fake_config_filename, 'w') as yaml_file:
             yaml.dump(fake_data, yaml_file, default_flow_style=True)
@@ -143,30 +133,15 @@ class TestConfigurationFileIssues(unittest.TestCase):
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex=re.compile(r'parse')):
             script.main(self.fake_config_filename)
 
-        #subprocess.run(['rm', fake_filename])
-
-
     def test_invalid_top_level_folder_halts_execution(self):
         # make a valid configuration file but with a bad top_level path
 
         # to avoid hardcoding in the configuration file structure, read the original configuration file in as a dict
         # then change the top directory parameter to something nonsense
-        '''
-        with open('config.yml') as original_yml_file:
-            configData = yaml.safe_load(original_yml_file)
-            original_yml_file.close()
-
-        configData['directories']['top_directory'] = 'n/a'
-        '''
 
         bad_config_data = self.original_configuration_data
 
         bad_config_data['directories']['top_directory'] = 'n/a'
-
-        ''' factored out
-        fake_config_file = 'test/config.yml'
-        subprocess.run(['touch', fake_config_file])
-        '''
 
         with open(self.fake_config_filename, 'w') as testing_yml_file:
             yaml.dump(bad_config_data, testing_yml_file, default_flow_style=True)
@@ -175,27 +150,17 @@ class TestConfigurationFileIssues(unittest.TestCase):
         with self.assertRaises(SystemExit):
             script.main(self.fake_config_filename)
 
-        # then delete the test configuration file
-        #subprocess.run(['rm', fake_config_file])
-
     def test_invalid_image_folder_raises_exception(self):
         # make a valid configuration file with a real top_level_path thats empty
         # make a valid test configuration file, then make a real top_level path thats empty
 
         # to avoid hardcoding in the configuration file structure, read the original configuration file in as a dict
         # change the top_level directory (so that there isnt a folder conflict), then create the new directory
-        '''
-        with open('config.yml') as original_yml_file:
-            configData = yaml.safe_load(original_yml_file)
-            original_yml_file.close()
-        '''
+
         fake_top_level_directory = os.path.join('test','top_level_directory')
-        #configData['directories']['top_directory'] = fake_top_level_directory
         bad_config_data = self.original_configuration_data
         bad_config_data['directories']['top_directory']
-        #fake_filename = os.path.join('test', 'config.yml')
 
-        #subprocess.run(['touch', fake_filename])
         with open(self.fake_config_filename, 'w') as testing_yml_file:
             yaml.dump(self.original_configuration_data, testing_yml_file, default_flow_style=True)
             testing_yml_file.close()
@@ -206,12 +171,7 @@ class TestConfigurationFileIssues(unittest.TestCase):
             # the top level directory exists, but the image folder doesnt
             script.retrieve_image_directory_information(self.fake_config_filename, '69')
 
-        #subprocess.run(['rm', fake_filename])
         subprocess.run(['rm', '-r', fake_top_level_directory], check=True)
-
-        #with_assert_value_error
-        # then delete both the new path and the testing configuration file
-
 
     def test_valid_image_folder_with_no_images_raises_exception(self):
         # make a valid configuration file with a real top_level_path
@@ -220,18 +180,10 @@ class TestConfigurationFileIssues(unittest.TestCase):
 
         # test that a ValueError is raised
         # delete the two directories you made, and the fake configuration file
-        ''' factored out
-        with open('config.yml') as original_yml_file:
-            configData = yaml.safe_load(original_yml_file)
-            original_yml_file.close()
-        '''
-
         fake_top_level_directory = os.path.join('test','top_level_directory')
         bad_config_data = self.original_configuration_data
         bad_config_data['directories']['top_directory'] = fake_top_level_directory
-        #fake_config_file = os.path.join('test', 'config.yml')
 
-        #subprocess.run(['touch', fake_config_file])
         with open(self.fake_config_filename, 'w') as testing_yml_file:
             yaml.dump(bad_config_data, testing_yml_file, default_flow_style=True)
             testing_yml_file.close()
@@ -246,7 +198,6 @@ class TestConfigurationFileIssues(unittest.TestCase):
         with self.assertRaises(ValueError):
             script.retrieve_image_directory_information(self.fake_config_filename, '69')
 
-        #subprocess.run(['rm', fake_config_file])
         subprocess.run(['rm', '-r', fake_top_level_directory], check=True)
 
 

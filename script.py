@@ -12,6 +12,13 @@ import errno
 import pdb
 
 def main(arg1):
+    """Main function to execute. Loops over a range of camera IDs (0-99, must be two digits) and then tries to
+    perform bad pixel masking the corresponding camera with the specified camera prefix.
+
+    :param arg1: the location of the config file, this is sys.argv[1]: $python [arg0 = filename] [arg1 = configuration file]
+    :return:
+
+    """
     for identifier in range(0, 99):
         camera_id_number = str(identifier).zfill(2)
         try:
