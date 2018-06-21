@@ -8,6 +8,7 @@ import time
 import datetime
 import logging
 import sys
+import errno
 import pdb
 
 def main(arg1):
@@ -31,8 +32,8 @@ def main(arg1):
 
             logger.info("Exiting.")
 
-        except OSError:
-            logger.warn("Unable to find any folders that contained the desired camera prefix and identifier ({0})".format(camera_id_number))
+        except FileNotFoundError:
+            logger.warning("Unable to find any folders that contained the desired camera prefix and identifier ({0})".format(camera_id_number))
 
             continue
 
@@ -61,9 +62,10 @@ def retrieve_image_directory_information(config_file_location, camera_identifier
         logger.info('Opening config file located at {}'.format(config_file_location))
 
     else:
-        msg = 'Unable to locate file at {}'.format(config_file_location)
+        #msg = 'Unable to locate file at {}'.format(config_file_location)
         #logger.error(msg)
-        raise OSError(msg)
+        #raise OSError(msg)
+        raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), config_file_location)
 
     with open(config_file_location) as yaml_file:
         # Store as dictionary
@@ -80,17 +82,29 @@ def retrieve_image_directory_information(config_file_location, camera_identifier
         # Get the latest date string to use.
         date_string = parse_config_file_date(directory_info)
 
+        # Check that top level directory is a real directory before you even start. If its not, then exit -- if the top directory isn't valid then
+        # none of the subdirectories can be, so don't waste your time checking them...
+        if os.path.isdir(directory_info['top_directory']):
+            logger.info("Top directory ({0}) appears valid, will continue searching for images.".format(directory_info['top_directory']))
+
+        else:
+            #raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), directory_info['top_directory'])
+            sys.exit(str(FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), directory_info['top_directory'])))
+
         # Locate all the image files and how many there are
         image_folder = os.path.join(directory_info['top_directory'], directory_info['camera_prefix'] + camera_identifier, date_string)
         # Once you have the image folder, check if it exists
+
+        logger.info("Searching for images in the path: {0}".format(image_folder))
 
         if os.path.isdir(image_folder):
             logger.info("Image folder is {}".format(image_folder))
 
         else:
-            msg = "The image folder you requested: {} does not appear to exist.".format(image_folder)
-            #logger.error(msg)
-            raise OSError(msg)
+            #msg = "The image folder you requested: {} does not appear to exist.".format(image_folder)
+            #raise OSError("The image folder you requested does not appear to exist -- will search for another camera prefix.")
+            logger.error("Image folder you requested does not appear to exist, throwing FileNotFoundError")
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), image_folder)
 
         # Stores the absolute path of the images in a list
         image_list = [os.path.abspath(os.path.join(image_folder, filename)) for filename in os.listdir(image_folder) if \
@@ -98,7 +112,9 @@ def retrieve_image_directory_information(config_file_location, camera_identifier
         prefixes_list = [directory_info['bias_prefix'], directory_info['dark_prefix'], directory_info['flats_prefix']]
 
         if len(image_list) < 1:
-            raise ValueError("No images found, check that the 'top_level' path in {} was correct.".format(config_file_location))
+            msg = "The image folder exists but appears to be empty."
+            logger.error(msg)
+            raise ValueError("The image folder exists but appears to be empty.")
 
         else:
             logger.info("{} images found".format(len(image_list)))
@@ -309,7 +325,7 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
             logger.info(msg)
 
         elif neighboring_bad_pixels == 1:
-            logger.warn(msg + "Potentially review images")
+            logger.warning(msg + "Potentially review images")
 
         else:
             logger.error(msg + "Review images now, image mask is corrupt")
