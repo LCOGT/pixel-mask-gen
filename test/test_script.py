@@ -8,23 +8,27 @@ import subprocess
 import re
 import yaml
 
-class TestFitsUtilities(unittest.TestCase):
+class TestFitsFileIOUtilities(unittest.TestCase):
 
-    def test_writing_empty_array_as_fits(self):
+    def test_writing_empty_array_to_fits_raises_exception(self):
         empty_array = numpy.empty([0, 0])
         with self.assertRaises(ValueError):
             script.output_to_FITS(empty_array, {}, 'filename.fits')
 
-    @unittest.skip('not ready')
-    def test_reading_empty_fits_file(self):
-        # create an empty fits file
-        # add its filename to a list
-        # call extract_data_from_files() and expect ValueError
+    def test_empty_image_file_raises_exception(self):
+    # make a list that contains the filename of one image
+    # create an empty file with that filename
+    # try to read in that filename, expect exception
+        testing_prefixes = []
+        empty_image_filename = os.path.join('test', 'empty_file.fits')
 
-        # delete empty fits file
-        raise NotImplementedError()
+        subprocess.run(['touch', empty_image_filename])
+        with self.assertRaises(IOError):
+            script.extract_data_from_files([empty_image_filename], [''])
 
-class TestsProcessingUtilities(unittest.TestCase):
+        subprocess.run(['rm', empty_image_filename])
+
+class TestsImageProcessingUtilities(unittest.TestCase):
 
     def test_median_filtering(self):
         random_array = numpy.random.randint(5, size=(5,5))
@@ -59,42 +63,13 @@ class TestsProcessingUtilities(unittest.TestCase):
         # masked array should have 3 bad pixels in it
         self.assertEqual(3, masked_array.sum())
 
-class TestDirectorySettings(unittest.TestCase):
+class TestDateParsingAndPrefixes(unittest.TestCase):
 
     def test_empty_image_list_and_bad_prefix_arrays_raises_error(self):
         image_list = []
         prefixes_array = ['', '', '']
         with self.assertRaises(ValueError):
             script.extract_data_from_files(image_list, prefixes_array)
-
-    def test_invalid_config_file_raises_error(self):
-        with self.assertRaises(FileNotFoundError):
-            script.retrieve_image_directory_information('nonexistent_file.yml', '69')
-
-    def test_empty_config_file_raises_error(self):
-        # Create a fake empty yml file, then delete it
-        fake_filename = 'test/config.yml'
-        subprocess.run(["touch", fake_filename])
-        # the error message has to say something like 'empty'
-        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex=re.compile(r'empty')):
-            script.main(fake_filename)
-
-        subprocess.run(['rm', fake_filename])
-
-    def test_invalid_yaml_structure_raises_error(self):
-        # Create a yaml file that just contains one blank dictionary
-        fake_filename = 'test/config.yml'
-        subprocess.run(["touch", fake_filename])
-
-        fake_data = {}
-        with open(fake_filename, 'w') as yaml_file:
-            yaml.dump(fake_data, yaml_file, default_flow_style=True)
-            yaml_file.close()
-        # since this is an error in parsing the yaml file, the error message should say something about this
-        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex=re.compile(r'parse')):
-            script.main(fake_filename)
-
-        subprocess.run(['rm', fake_filename])
 
     # TODO: Remove code duplication in next two tests
     def test_bad_relative_date_returns_yesterdays_date(self):
@@ -119,30 +94,89 @@ class TestDirectorySettings(unittest.TestCase):
         date_string = script.parse_config_file_date(directory_info_dict)
         self.assertEqual(yesterdays_date, date_string)
 
+
+class TestConfigurationFileIssues(unittest.TestCase):
+
+    def setUp(self):
+        """
+        Initialize
+        :return:
+        """
+        fake_config_filename = os.path.join('test', 'config.yml')
+        self.fake_config_filename = fake_config_filename
+        # check=True ensures an exception is thrown if the command returns a non-zero exit code,
+        # which will prevent our tests in this class from running
+        subprocess.run(['touch', fake_config_filename], check=True)
+
+        with open('config.yml') as original_yml_file:
+            configData = yaml.safe_load(original_yml_file)
+            original_yml_file.close()
+            self.original_configuration_data = configData
+
+    def tearDown(self):
+        subprocess.run(['rm', self.fake_config_filename], check=True)
+
+    def test_empty_config_file_raises_error(self):
+        # Create a fake empty yml file, then delete it
+        ''' factored out
+        fake_filename = 'test/config.yml'
+        subprocess.run(["touch", fake_filename])
+        '''
+        # the error message has to say something like 'empty'
+        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex=re.compile(r'empty')):
+            script.main(self.fake_config_filename)
+
+        #subprocess.run(['rm', self.fake_config_filename])
+
+    def test_invalid_yaml_structure_raises_error(self):
+        # Create a yaml file that just contains one blank dictionary
+        ''' factored out
+        fake_filename = 'test/config.yml'
+        subprocess.run(["touch", fake_filename])
+        '''
+
+        fake_data = {}
+        with open(self.fake_config_filename, 'w') as yaml_file:
+            yaml.dump(fake_data, yaml_file, default_flow_style=True)
+            yaml_file.close()
+        # since this is an error in parsing the yaml file, the error message should say something about this
+        with self.assertRaisesRegex(expected_exception=ValueError, expected_regex=re.compile(r'parse')):
+            script.main(self.fake_config_filename)
+
+        #subprocess.run(['rm', fake_filename])
+
+
     def test_invalid_top_level_folder_halts_execution(self):
         # make a valid configuration file but with a bad top_level path
 
         # to avoid hardcoding in the configuration file structure, read the original configuration file in as a dict
         # then change the top directory parameter to something nonsense
-
+        '''
         with open('config.yml') as original_yml_file:
             configData = yaml.safe_load(original_yml_file)
             original_yml_file.close()
 
         configData['directories']['top_directory'] = 'n/a'
+        '''
 
+        bad_config_data = self.original_configuration_data
+
+        bad_config_data['directories']['top_directory'] = 'n/a'
+
+        ''' factored out
         fake_config_file = 'test/config.yml'
         subprocess.run(['touch', fake_config_file])
+        '''
 
-        with open(fake_config_file, 'w') as testing_yml_file:
-            yaml.dump(configData, testing_yml_file, default_flow_style=True)
+        with open(self.fake_config_filename, 'w') as testing_yml_file:
+            yaml.dump(bad_config_data, testing_yml_file, default_flow_style=True)
             testing_yml_file.close()
 
         with self.assertRaises(SystemExit):
-            script.main(fake_config_file)
+            script.main(self.fake_config_filename)
 
         # then delete the test configuration file
-        subprocess.run(['rm', fake_config_file])
+        #subprocess.run(['rm', fake_config_file])
 
     def test_invalid_image_folder_raises_exception(self):
         # make a valid configuration file with a real top_level_path thats empty
@@ -150,27 +184,30 @@ class TestDirectorySettings(unittest.TestCase):
 
         # to avoid hardcoding in the configuration file structure, read the original configuration file in as a dict
         # change the top_level directory (so that there isnt a folder conflict), then create the new directory
+        '''
         with open('config.yml') as original_yml_file:
             configData = yaml.safe_load(original_yml_file)
             original_yml_file.close()
-
+        '''
         fake_top_level_directory = os.path.join('test','top_level_directory')
-        configData['directories']['top_directory'] = fake_top_level_directory
-        fake_filename = os.path.join('test', 'config.yml')
+        #configData['directories']['top_directory'] = fake_top_level_directory
+        bad_config_data = self.original_configuration_data
+        bad_config_data['directories']['top_directory']
+        #fake_filename = os.path.join('test', 'config.yml')
 
-        subprocess.run(['touch', fake_filename])
-        with open(fake_filename, 'w') as testing_yml_file:
-            yaml.dump(configData, testing_yml_file, default_flow_style=True)
+        #subprocess.run(['touch', fake_filename])
+        with open(self.fake_config_filename, 'w') as testing_yml_file:
+            yaml.dump(self.original_configuration_data, testing_yml_file, default_flow_style=True)
             testing_yml_file.close()
 
-        subprocess.run(['mkdir', fake_top_level_directory])
+        subprocess.run(['mkdir', fake_top_level_directory], check=True)
 
         with self.assertRaises(FileNotFoundError):
             # the top level directory exists, but the image folder doesnt
-            script.retrieve_image_directory_information(fake_filename, '69')
+            script.retrieve_image_directory_information(self.fake_config_filename, '69')
 
-        subprocess.run(['rm', fake_filename])
-        subprocess.run(['rm', '-r', fake_top_level_directory])
+        #subprocess.run(['rm', fake_filename])
+        subprocess.run(['rm', '-r', fake_top_level_directory], check=True)
 
         #with_assert_value_error
         # then delete both the new path and the testing configuration file
@@ -183,42 +220,39 @@ class TestDirectorySettings(unittest.TestCase):
 
         # test that a ValueError is raised
         # delete the two directories you made, and the fake configuration file
+        ''' factored out
         with open('config.yml') as original_yml_file:
             configData = yaml.safe_load(original_yml_file)
             original_yml_file.close()
+        '''
 
         fake_top_level_directory = os.path.join('test','top_level_directory')
-        configData['directories']['top_directory'] = fake_top_level_directory
-        fake_config_file = os.path.join('test', 'config.yml')
+        bad_config_data = self.original_configuration_data
+        bad_config_data['directories']['top_directory'] = fake_top_level_directory
+        #fake_config_file = os.path.join('test', 'config.yml')
 
-        subprocess.run(['touch', fake_config_file])
-        with open(fake_config_file, 'w') as testing_yml_file:
-            yaml.dump(configData, testing_yml_file, default_flow_style=True)
+        #subprocess.run(['touch', fake_config_file])
+        with open(self.fake_config_filename, 'w') as testing_yml_file:
+            yaml.dump(bad_config_data, testing_yml_file, default_flow_style=True)
             testing_yml_file.close()
 
         # This tells you what folder to make
-        date_string = script.parse_config_file_date(configData['directories'])
+        date_string = script.parse_config_file_date(bad_config_data['directories'])
 
         fake_camera_id = '69'
-        fake_image_path = os.path.join(fake_top_level_directory,configData['directories']['camera_prefix'] + fake_camera_id, date_string)
-        subprocess.run(['mkdir', '-p', fake_image_path]) # must use P flag to create nested directory
+        fake_image_path = os.path.join(fake_top_level_directory,bad_config_data['directories']['camera_prefix'] + fake_camera_id, date_string)
+        subprocess.run(['mkdir', '-p', fake_image_path], check=True) # must use P flag to create nested directory
 
         with self.assertRaises(ValueError):
-            script.retrieve_image_directory_information(fake_config_file, '69')
+            script.retrieve_image_directory_information(self.fake_config_filename, '69')
 
-        subprocess.run(['rm', fake_config_file])
-        subprocess.run(['rm', '-r', fake_top_level_directory])
-
-
-    @unittest.skip('not ready')
-    def test_empty_image_file_raises_exception(self):
-        # make a list that contains the filename of one image
-        # create an empty file with that filename
-        # try to read in that filename, expect exception
-        raise NotImplementedError()
+        #subprocess.run(['rm', fake_config_file])
+        subprocess.run(['rm', '-r', fake_top_level_directory], check=True)
 
 
-
+    def test_invalid_config_file_raises_error(self):
+        with self.assertRaises(FileNotFoundError):
+            script.retrieve_image_directory_information('nonexistent_file.yml', '69')
 
 
 if __name__ == '__main__':

@@ -155,19 +155,14 @@ def extract_data_from_files(image_list, prefixes_array):
                 rows, cols = image_data.shape
                 # image headers also wouldn't change across cameras?
                 image_header = image_file[0].header
-                if (rows == 0) or (cols == 0):
-                    #logger.error("The image {0} has no data".format(image_filename))
-                    raise ValueError("The image you are trying to read has no data!")
+                logger.info("Located image: {0} having shape: {1} by {2}".format(image_filename, rows, cols))
+                image_file.close()
+                arr_string = prefix[0] + "_array"
+                eval(arr_string + '.append(image_data)') # example: b_array.append(image_data)
 
-                else:
-                    logger.info("Located image: {0} having shape: {1} by {2}".format(image_filename, rows, cols))
-                    image_file.close()
-                    arr_string = prefix[0] + "_array"
-                    eval(arr_string + '.append(image_data)') # example: b_array.append(image_data)
-
-                    # once you've found the matching prefix, stop checking for other prefixes -- at
-                    # most once prefix can match
-                    break
+                # once you've found the matching prefix, stop checking for other prefixes -- at
+                # most once prefix can match
+                break
 
     # return the arrays in alphabetical order
     return (b_array, d_array, f_array, image_header, rows, cols)
