@@ -129,6 +129,22 @@ def retrieve_image_directory_information(config_file_location, camera_identifier
         return (image_list, prefixes_list, directory_info['camera_prefix'] + camera_identifier)
 
 
+def read_individual_fits_file(filename):
+    """
+
+    :param filename: The absolute filename of a FITS image
+    :return:
+    """
+
+    image_file = astropy.io.fits.open(filename)
+    image_data = image_file[0].data
+    image_headers = image_file[0].header
+    image_shape = image_data.shape
+
+    image_file.close()
+
+    return image_data, image_headers, image_shape
+
 def extract_data_from_files(image_list, prefixes_array):
     """Takes in a list of FITS filenames, converts FITS data into numpy arrays, and then stores that FITS info according
     to what calibration type the image corresponds to.
@@ -156,6 +172,7 @@ def extract_data_from_files(image_list, prefixes_array):
         # will tell you what array it should go into
         for prefix in prefixes_array:
             if image_filename.endswith("{0}.fits".format(prefix)):
+                '''
                 image_file = astropy.io.fits.open(image_filename)
                 image_data = image_file[0].data
                 # bad practice to reassign this variable every time, but this property shouldn't change across cameras
@@ -164,6 +181,8 @@ def extract_data_from_files(image_list, prefixes_array):
                 image_header = image_file[0].header
                 logger.info("Located image: {0} having shape: {1} by {2}".format(image_filename, rows, cols))
                 image_file.close()
+                '''
+                image_data, image_headers, image_shape = read_individual_fits_file(image_filename)
                 arr_string = prefix[0] + "_array"
                 eval(arr_string + '.append(image_data)') # example: b_array.append(image_data)
 
@@ -172,7 +191,7 @@ def extract_data_from_files(image_list, prefixes_array):
                 break
 
     # return the arrays in alphabetical order
-    return (b_array, d_array, f_array, image_header, rows, cols)
+    return (b_array, d_array, f_array, image_headers, image_shape[0], image_shape[1])
 
 def filter_individual(image_array, sigma_hi, sigma_low):
     """Applies the median filter to one image, and returns back diagnostic information.
@@ -315,7 +334,7 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
     """
     for index, arr in enumerate(arrays_of_bad_pixels):
         logger.info("{0} bad pixels were detected for calibration type #{1}".format(len(arr), index))
-        indiv_file_path = "debug/{0}_bpm.txt".format(index)
+        indiv_file_path = os.path.join("debug","{0}_bpm.txt".format(index))
         with open(indiv_file_path, 'w') as output:
             output.write(''.join(map(str, arr)))
             output.close()
@@ -366,7 +385,7 @@ def test_adjacent_pixels(bad_pixel_list):
     return max_neighboring_bad_pixels
 
 
-def output_to_FITS(image_data, header_dict, filename):
+def output_to_FITS(image_data, header_dict, filename, debug=True):
     """Generates a FITS v4 file from image data.
 
     :param image_data: A numpy array, will be used for the primary header.
@@ -395,23 +414,27 @@ def output_to_FITS(image_data, header_dict, filename):
     todays_date = datetime.datetime.today().strftime("%Y%m%d")
 
 
-    # For debugging purposes, write the mask and the header file into a text file
-    final_bpm_txtfile_path = os.path.join('debug', todays_date + "-" + filename + ".txt")
+    if debug == True:
+        # For debugging purposes, write the mask and the header file into a text file
+        final_bpm_txtfile_path = os.path.join('debug', todays_date + "-" + filename + ".txt")
 
-    with open(str(final_bpm_txtfile_path), 'w') as final_bpm_txtfile:
-        final_bpm_txtfile.write(''.join(map(str, [coords for coords in image_data])))
-        final_bpm_txtfile.write('==========')
-        final_bpm_txtfile.write('HEADERS\n')
-        header_string = ''
-        for key, value in header_dict.items():
-            final_bpm_txtfile.write("key: {0}, value: {1}\n".format(key, value))
-        final_bpm_txtfile.write(header_string)
-        final_bpm_txtfile.close()
+        with open(str(final_bpm_txtfile_path), 'w') as final_bpm_txtfile:
+            final_bpm_txtfile.write(''.join(map(str, [coords for coords in image_data])))
+            final_bpm_txtfile.write('==========')
+            final_bpm_txtfile.write('HEADERS\n')
+            header_string = ''
+            for key, value in header_dict.items():
+                final_bpm_txtfile.write("key: {0}, value: {1}\n".format(key, value))
+            final_bpm_txtfile.write(header_string)
+            final_bpm_txtfile.close()
 
     new_hdu_list.writeto(todays_date + "-" + filename, overwrite=True, output_verify='exception',checksum=True)
 
-
     new_hdu_list.close()
+
+    # after closing the file, ensure that the file it wrote to was not empty.
+    if (os.stat(filename).st_size < 10):
+        raise ValueError('It appears the FITS file given from the data could not be written to.')
 
 
 def get_last_date_of_unit(todays_date, string):
