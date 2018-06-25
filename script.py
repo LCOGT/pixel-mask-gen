@@ -25,11 +25,14 @@ def main(arg1):
             image_list, prefixes_list, full_camera_name = retrieve_image_directory_information(arg1,
                                                                                                camera_id_number)
 
-            bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list,
-                                                                                                       prefixes_list)
+            bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list,prefixes_list)
+
+            pdb.set_trace()
 
             clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array,
                                                                                          flat_array], sys.argv[1])
+
+            pdb.set_trace()
 
             final_bpm_list = combine_bad_pixel_locations([clean_bias_array, clean_dark_array, clean_flat_array])
 
@@ -138,12 +141,12 @@ def read_individual_fits_file(filename):
 
     image_file = astropy.io.fits.open(filename)
     image_data = image_file[0].data
-    image_headers = image_file[0].header
+    image_header_info = image_file[0].header
     image_shape = image_data.shape
 
     image_file.close()
 
-    return image_data, image_headers, image_shape
+    return image_data, image_header_info, image_shape
 
 def extract_data_from_files(image_list, prefixes_array):
     """Takes in a list of FITS filenames, converts FITS data into numpy arrays, and then stores that FITS info according
@@ -161,6 +164,9 @@ def extract_data_from_files(image_list, prefixes_array):
     """
 
     f_array, d_array, b_array = [], [], []
+
+    logger.info("Image list received: {0}".format(image_list))
+    logger.info("Corresponding prefix list received: {0}".format(prefixes_array))
 
     if len(image_list) < 1:
         msg = "No images were passed in, unable to extract data."
@@ -189,6 +195,13 @@ def extract_data_from_files(image_list, prefixes_array):
                 # once you've found the matching prefix, stop checking for other prefixes -- at
                 # most once prefix can match
                 break
+
+    # not all arrays can be empty here or something went wrong
+    if ( len(b_array) == len(d_array) == len(f_array) == 0 ):
+        raise ValueError('All image calibration arrays are empty.')
+
+    else:
+        logger.info("Data extraction from FITS files complete. {0} images parsed in total".format(len(b_array) + len(f_array) + len(d_array)))
 
     # return the arrays in alphabetical order
     return (b_array, d_array, f_array, image_headers, image_shape[0], image_shape[1])
@@ -415,6 +428,7 @@ def output_to_FITS(image_data, header_dict, filename, debug=True):
 
 
     if debug == True:
+        logger.info("Writing debugging information to /debug/")
         # For debugging purposes, write the mask and the header file into a text file
         final_bpm_txtfile_path = os.path.join('debug', todays_date + "-" + filename + ".txt")
 

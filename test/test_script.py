@@ -10,6 +10,8 @@ import sys
 import random
 import collections
 import glob
+import pdb
+import astropy.io
 
 class TestFitsFileIOUtilities(unittest.TestCase):
 
@@ -228,25 +230,28 @@ class TestFullEndtoEnd(unittest.TestCase):
         TestConfigurationFileIssues.setUp(self)
 
         testing_config_data = self.original_configuration_data
-        fake_top_level_directory = os.path.join('test', 'top_level_directory')
-        testing_config_data['directories']['top_directory'] = fake_top_level_directory
+        self.fake_top_level_directory = os.path.join('test', 'top_level_directory')
+        testing_config_data['directories']['top_directory'] = self.fake_top_level_directory
         testing_config_data['statistics']['threshold'] = 95
         # the prefixes list needs to change too
-        new_prefix_list = ['a00', 'b00', 'c00']
+        new_prefix_list = ['b69', 'd69', 'f69']
         #  its okay to hard code these in because these are the only calibration types that will ever exist
         old_prefix_words = ['bias', 'dark', 'flats']
         for index, value in enumerate(new_prefix_list):
-            print(index)
             testing_config_data['directories'][str(old_prefix_words[index]) + '_prefix'] = value
+
+        print('Initiating YAML file.')
 
         with open(self.fake_config_filename, 'w') as testing_yml_file:
             yaml.dump(testing_config_data, testing_yml_file, default_flow_style=True)
             testing_yml_file.close()
 
+        print('Test YAML file initated.')
+
         date_string = script.parse_config_file_date(testing_config_data['directories'])
 
         fake_camera_id = '69'
-        fake_image_path = os.path.join(fake_top_level_directory, testing_config_data['directories']['camera_prefix'] + fake_camera_id, date_string)
+        fake_image_path = os.path.join(self.fake_top_level_directory, testing_config_data['directories']['camera_prefix'] + fake_camera_id, date_string)
 
         subprocess.run(['mkdir', '-p', fake_image_path], check=True)
 
@@ -256,6 +261,7 @@ class TestFullEndtoEnd(unittest.TestCase):
         self.image_dimensions = 2000, 2000
 
         max_pixel_val = 10
+        print("Preparing to generate fake images into directory: {0}".format(fake_image_path))
         for image_number in range(0, test_images):
             image_data = numpy.random.randint(low=0, high=max_pixel_val, size=(self.image_dimensions[0], self.image_dimensions[1]))
 
@@ -264,29 +270,43 @@ class TestFullEndtoEnd(unittest.TestCase):
             bad_pixel_index = [random.randint(0, min(self.image_dimensions[0], self.image_dimensions[1])), \
                                random.randint(0, min(self.image_dimensions[0], self.image_dimensions[1]))]
             bad_pixel_value = sys.maxsize - 1
-            self.bad_pixel_locations.append(bad_pixel_index)
+            self.bad_pixel_locations.append(tuple(bad_pixel_index))
             numpy.put(a=image_data, ind=bad_pixel_index, v=bad_pixel_value, mode='raise')
-            test_image_filename = fake_image_path + str(image_number) + '_bpm-test.fits'
-            script.output_to_FITS(image_data, {'OBSTYPE': 'BPM'}, test_image_filename, debug=False)
+            current_prefix_num = image_number % len(new_prefix_list)
+            test_image_filename = os.path.join(fake_image_path,  str(image_number) + "-random-test-{0}.fits".format(new_prefix_list[current_prefix_num]))
+
+            #pdb.set_trace()
+            #script.output_to_FITS(image_data, {'OBSTYPE': 'BPM'}, test_image_filename, debug=False)
+            # Write the image_data array to a .fits file
+            new_hdu = astropy.io.fits.PrimaryHDU(image_data.astype(numpy.uint8))
+            new_hdu_list = astropy.io.fits.HDUList([new_hdu])
+
+            new_hdu_list[0].header.set('OBSTYPE', 'BPM')
+            new_hdu_list.writeto(test_image_filename,overwrite=False,output_verify='exception')
+            new_hdu_list.close()
         print('Completed setup for integration test.')
-            # Create a FITS file that looks something like: path/to/images/here/<XY>_bpm-test.fits' that will be the sample images
+        # Create a FITS file that looks something like: path/to/images/here/<XY>_bpm-test.fits' that will be the sample images
 
     def tearDown(self):
         # Delete the testing configuration yaml file
         # recursively delete the fake testing top directory
         # Delete the debug directory?
-        pass
+        subprocess.run(['rm', self.fake_config_filename], check=True)
+        subprocess.run(['rm', '-rf', self.fake_top_level_directory])
 
 
     def test_full_integration_test(self):
         # Now that all the sample images are created, call the main script?
         script.main(self.fake_config_filename)
 
+
+
         # find if any bad pixel appeared with a frequency that exceeds the threshold amount (for each of the three thirds)
 
         thresholded_array = [key for (key, value) in collections.Counter(self.bad_pixel_locations).items() \
                              if (value >= 0.95 * len(self.bad_pixel_locations))]
 
+        pdb.set_trace()
 
         # once you have the final array, generate the mask
         masked_array = numpy.zeros(self.image_dimensions, dtype=bool)
@@ -299,12 +319,13 @@ class TestFullEndtoEnd(unittest.TestCase):
         if len(fits_files_in_dir) < 2:
             combined_bpm_mask_filename = os.path.abspath(fits_files_in_dir[0])
 
+
         combined_bpm_data, combined_bpm_headers, combined_bpm_size = script.read_individual_fits_file(combined_bpm_mask_filename)
 
         # The mask here should have the same amount of nonzero elements as your mask did earlier, to ensure that the
         # correct amount of bad pixels were detected
 
-        self.assertEqual(combined_bpm_data.count_nonzero(), masked_array.count_nonzero())
+        self.assertEqual(numpy.count_nonzero(combined_bpm_data), numpy.count_nonzero(masked_array))
 
 
 
