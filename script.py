@@ -47,7 +47,7 @@ def main(arg1):
             continue
 
     if empty_folder_count == 99:
-        logger.warn("No folders matching ANY of the camera prefix and identifiers were found. Check this folder.")
+        logger.warning("No folders matching ANY of the camera prefix and identifiers were found. Check this folder.")
 
 def setup_custom_logger(name='pixel-mask-gen'):
     """This function defines the custom logging instance for use in the module. Logs will be outputted in the form:

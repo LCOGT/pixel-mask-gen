@@ -15,6 +15,10 @@ ADD config.yml /
 
 ADD test/test_script.py test/test_script.py
 
+ADD debug/ debug/
+
+ADD documentation/ documentation/
+
 # Install requirements
 RUN ["pip" ,"install", "-r", "requirements.txt"]
 
