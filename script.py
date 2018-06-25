@@ -27,12 +27,8 @@ def main(arg1):
 
             bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list,prefixes_list)
 
-            pdb.set_trace()
-
             clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array,
-                                                                                         flat_array], sys.argv[1])
-
-            pdb.set_trace()
+                                                                                         flat_array], arg1)
 
             final_bpm_list = combine_bad_pixel_locations([clean_bias_array, clean_dark_array, clean_flat_array])
 
@@ -263,6 +259,8 @@ def run_median_filtering(images_arrays, config_file_location):
             logger.info("{0} ({1}% of total) pixels failed the sigma clipping on image #{2}".format(len(masked_indices),
                                                                                                     percentage_masked,
                                                                                                     index_image_array))
+
+            logger.info("Failing pixels occured at: {0}".format(masked_indices))
 
             # make sure too many pixels arent getting filtered, but if they are, increase the minimum std dev that you
             # allow

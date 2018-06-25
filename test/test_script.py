@@ -260,18 +260,24 @@ class TestFullEndtoEnd(unittest.TestCase):
         self.bad_pixel_locations = []
         self.image_dimensions = 2000, 2000
 
-        max_pixel_val = 10
+        max_pixel_val = 2
         print("Preparing to generate fake images into directory: {0}".format(fake_image_path))
+        # select a random tuple to serve as the coordinates 'marked' pixel
+        # use min to prevent an indexerror
+        bad_pixel_index = ( random.randint(0, min(self.image_dimensions[0], self.image_dimensions[1])), \
+                            random.randint(0, min(self.image_dimensions[0], self.image_dimensions[1])) )
+
+        print("The fake bad pixel is in location: {0}".format(bad_pixel_index))
+
+        pdb.set_trace()
+
         for image_number in range(0, test_images):
             image_data = numpy.random.randint(low=0, high=max_pixel_val, size=(self.image_dimensions[0], self.image_dimensions[1]))
 
-            # select a random tuple to serve as the coordinates 'marked' pixel
-            # use min to prevent an indexerror
-            bad_pixel_index = [random.randint(0, min(self.image_dimensions[0], self.image_dimensions[1])), \
-                               random.randint(0, min(self.image_dimensions[0], self.image_dimensions[1]))]
             bad_pixel_value = sys.maxsize - 1
             self.bad_pixel_locations.append(tuple(bad_pixel_index))
-            numpy.put(a=image_data, ind=bad_pixel_index, v=bad_pixel_value, mode='raise')
+            #numpy.put(a=image_data, ind=bad_pixel_index, v=bad_pixel_value, mode='raise')
+            image_data[bad_pixel_index] = bad_pixel_value
             current_prefix_num = image_number % len(new_prefix_list)
             test_image_filename = os.path.join(fake_image_path,  str(image_number) + "-random-test-{0}.fits".format(new_prefix_list[current_prefix_num]))
 
