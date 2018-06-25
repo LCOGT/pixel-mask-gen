@@ -103,10 +103,6 @@ class TestDateParsingAndPrefixes(unittest.TestCase):
 class TestConfigurationFileIssues(unittest.TestCase):
 
     def setUp(self):
-        """
-        Initialize
-        :return:
-        """
         fake_config_filename = os.path.join('test', 'config.yml')
         self.fake_config_filename = fake_config_filename
         # check=True ensures an exception is thrown if the command returns a non-zero exit code,
@@ -214,8 +210,7 @@ class TestConfigurationFileIssues(unittest.TestCase):
 class TestFullEndtoEnd(unittest.TestCase):
 
     def setUp(self):
-        """
-        To set up an integration test:
+        """To set up an integration test:
         1) Copy a valid yaml configuration file into the testing directory, but change the top_level directory into
         2) something that is within the test directory
         3) Create several random numpy arrays (to represent images) of fixed size, then select 1 arbitrary index (to rep-
@@ -224,7 +219,6 @@ class TestFullEndtoEnd(unittest.TestCase):
          (see earlier)
 
          The actual test will just consist of testing that the pixels you set to INT_MAX earlier were actually removed
-        :return:
         """
         # Set up an empty configuration yaml file in the test directory
         TestConfigurationFileIssues.setUp(self)
@@ -269,20 +263,15 @@ class TestFullEndtoEnd(unittest.TestCase):
 
         print("The fake bad pixel is in location: {0}".format(bad_pixel_index))
 
-        pdb.set_trace()
-
         for image_number in range(0, test_images):
             image_data = numpy.random.randint(low=0, high=max_pixel_val, size=(self.image_dimensions[0], self.image_dimensions[1]))
 
             bad_pixel_value = sys.maxsize - 1
             self.bad_pixel_locations.append(tuple(bad_pixel_index))
-            #numpy.put(a=image_data, ind=bad_pixel_index, v=bad_pixel_value, mode='raise')
             image_data[bad_pixel_index] = bad_pixel_value
             current_prefix_num = image_number % len(new_prefix_list)
             test_image_filename = os.path.join(fake_image_path,  str(image_number) + "-random-test-{0}.fits".format(new_prefix_list[current_prefix_num]))
 
-            #pdb.set_trace()
-            #script.output_to_FITS(image_data, {'OBSTYPE': 'BPM'}, test_image_filename, debug=False)
             # Write the image_data array to a .fits file
             new_hdu = astropy.io.fits.PrimaryHDU(image_data.astype(numpy.uint8))
             new_hdu_list = astropy.io.fits.HDUList([new_hdu])
@@ -290,6 +279,7 @@ class TestFullEndtoEnd(unittest.TestCase):
             new_hdu_list[0].header.set('OBSTYPE', 'BPM')
             new_hdu_list.writeto(test_image_filename,overwrite=False,output_verify='exception')
             new_hdu_list.close()
+
         print('Completed setup for integration test.')
         # Create a FITS file that looks something like: path/to/images/here/<XY>_bpm-test.fits' that will be the sample images
 
@@ -304,15 +294,11 @@ class TestFullEndtoEnd(unittest.TestCase):
     def test_full_integration_test(self):
         # Now that all the sample images are created, call the main script?
         script.main(self.fake_config_filename)
-
-
-
         # find if any bad pixel appeared with a frequency that exceeds the threshold amount (for each of the three thirds)
 
+        # Even though the threshold value is configurable, we hardcoded it to 95%
         thresholded_array = [key for (key, value) in collections.Counter(self.bad_pixel_locations).items() \
                              if (value >= 0.95 * len(self.bad_pixel_locations))]
-
-        pdb.set_trace()
 
         # once you have the final array, generate the mask
         masked_array = numpy.zeros(self.image_dimensions, dtype=bool)
@@ -325,15 +311,12 @@ class TestFullEndtoEnd(unittest.TestCase):
         if len(fits_files_in_dir) < 2:
             combined_bpm_mask_filename = os.path.abspath(fits_files_in_dir[0])
 
-
         combined_bpm_data, combined_bpm_headers, combined_bpm_size = script.read_individual_fits_file(combined_bpm_mask_filename)
 
         # The mask here should have the same amount of nonzero elements as your mask did earlier, to ensure that the
         # correct amount of bad pixels were detected
 
         self.assertEqual(numpy.count_nonzero(combined_bpm_data), numpy.count_nonzero(masked_array))
-
-
 
 
 if __name__ == '__main__':
