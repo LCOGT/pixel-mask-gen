@@ -1,7 +1,7 @@
+# External imports
 import unittest
 import numpy
 import os
-import script
 import datetime
 import subprocess
 import re
@@ -12,6 +12,11 @@ import collections
 import glob
 import pdb
 import astropy.io
+
+# Internal imports
+import script
+import image_object
+import image_processing
 
 class TestFitsFileIOUtilities(unittest.TestCase):
 
@@ -35,10 +40,13 @@ class TestFitsFileIOUtilities(unittest.TestCase):
 
 class TestsImageProcessingUtilities(unittest.TestCase):
 
-    def test_median_filtering(self):
+    def test_sigma_clipping(self):
         random_array = numpy.random.randint(5, size=(5,5))
         med, std = numpy.median(random_array), numpy.std(random_array)
-        filtered_array, masked_indices, _ = script.filter_individual(random_array, sigma_hi=1, sigma_low = 1)
+        filtered_array, masked_indices, _ = image_processing.sigma_clip_individual(random_array, \
+                                                                                   sigma_hi=1, \
+                                                                                   sigma_low = 1)
+
         # we dont know how many iterations the algorithm will need to do, but we do know that its HIGHLY likely that at
         # least one entry out of the 25 will need to be filtered
         self.assertGreater(masked_indices.size, 1)
@@ -55,7 +63,7 @@ class TestsImageProcessingUtilities(unittest.TestCase):
         sim_bad_pixels_list.append((existing_x_coord +1, existing_y_coord))
 
         # once neighboring bad pixel is added
-        adjacent_bad_pixels = script.test_adjacent_pixels(sim_bad_pixels_list)
+        adjacent_bad_pixels = image_processing.test_adjacent_pixels(sim_bad_pixels_list)
         self.assertGreaterEqual(adjacent_bad_pixels, 1)
 
 
@@ -67,6 +75,23 @@ class TestsImageProcessingUtilities(unittest.TestCase):
         masked_array = script.generate_mask_from_bad_pixels(bad_pixel_locations, 4, 4)
         # masked array should have 3 bad pixels in it
         self.assertEqual(3, masked_array.sum())
+
+
+    @unittest.skip('Not implemented')
+    def test_bias_filtering(self):
+        pass
+
+    @unittest.skip('Not implemented')
+    def test_flat_filtering(self):
+        pass
+
+    @unittest.skip('Not implemented')
+    def test_dark_filtering(self):
+        pass
+
+    @unittest.skip('Not implemented')
+    def test_center_region_extraction(self):
+        pass
 
 class TestDateParsingAndPrefixes(unittest.TestCase):
 

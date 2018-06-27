@@ -7,7 +7,7 @@ Welcome to pixel-mask-gen's documentation!
 ==========================================
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 5
    :caption: Contents:
 
    readme
@@ -17,7 +17,11 @@ Welcome to pixel-mask-gen's documentation!
     :members:
     :show-inheritance:
 
-.. automodule:: test.test_script
+.. automodule:: image_processing
+    :members:
+    :show-inheritance:
+
+.. autoclass:: image_object.ImageObject
     :members:
     :show-inheritance:
 

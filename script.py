@@ -1,3 +1,4 @@
+# External
 import astropy.io.fits
 import astropy.stats
 import numpy
@@ -10,6 +11,9 @@ import logging
 import sys
 import errno
 import pdb
+# Internal
+import image_object
+import image_processing
 
 def main(arg1):
     """This function will execute when the module is run in main context.
@@ -30,7 +34,7 @@ def main(arg1):
 
             bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list,prefixes_list)
 
-            clean_bias_array, clean_dark_array, clean_flat_array = run_median_filtering([bias_array, dark_array,
+            clean_bias_array, clean_dark_array, clean_flat_array = run_sigma_clipping([bias_array, dark_array,
                                                                                          flat_array], arg1)
 
             final_bpm_list = combine_bad_pixel_locations([clean_bias_array, clean_dark_array, clean_flat_array])
@@ -158,6 +162,7 @@ def read_individual_fits_file(filename):
 
     :param filename: The absolute filename of a FITS image
 
+
     :returns image_data: A numpy array representing the data in the image
     :returns image_header_info: A dictionary object representing the header information for the last image. The \
                 important header information will not change from image to image usually
@@ -204,6 +209,10 @@ def extract_data_from_files(image_list, prefixes_array):
         for prefix in prefixes_array:
             if image_filename.endswith("{0}.fits".format(prefix)):
                 image_data, image_headers, image_shape = read_individual_fits_file(image_filename)
+
+                # Create image object
+                image = image_object.ImageObject(image_data, image_headers)
+
                 arr_string = prefix[0] + "_array"
                 eval(arr_string + '.append(image_data)') # example: b_array.append(image_data)
 
@@ -223,28 +232,6 @@ def extract_data_from_files(image_list, prefixes_array):
     # return the arrays in alphabetical order
     return (b_array, d_array, f_array, image_headers, image_shape[0], image_shape[1])
 
-def filter_individual(image_array, sigma_hi, sigma_low):
-    """Applies the median filter to one image, and returns back diagnostic information.
-
-    :param image_array: A numpy array that represents the FITS file image
-    :param sigma_hi: The upper limit in standard deviations to filter on
-    :param sigma_low: The lower limit in standard deviations to filter on
-    :returns mfiltered_array: a numpy array that has been median filtered (the filtered entries are masked)
-    :returns masked_indices: the coordinates (x,y) that were masked by the median filter
-    :returns percentage_mask: the percentage of pixels that were masked by the median filter
-
-    """
-
-    mfiltered_array = astropy.stats.sigma_clip(data=image_array,\
-                                    sigma_lower=sigma_low,\
-                                    sigma_upper=sigma_hi)
-
-    masked_indices = numpy.transpose(numpy.ma.getmask(mfiltered_array).nonzero())
-
-    percentage_masked = (len(masked_indices) / mfiltered_array.size) * 100
-
-    return (mfiltered_array, masked_indices, percentage_masked)
-
 def generate_flattened_list(list_to_flatten):
     """Takes in a doubly-nested (i.e. 2-layer deep) list and returns a flattened version where each element is a tuple
 
@@ -259,7 +246,7 @@ def generate_flattened_list(list_to_flatten):
     return flattened_list
 
 
-def run_median_filtering(images_arrays, config_file_location):
+def run_sigma_clipping(images_arrays, config_file_location):
     """Once you have a list of all the images (where each image is a numpy array), you are now ready to
     apply the proper median filtering on them.
 
@@ -286,7 +273,7 @@ def run_median_filtering(images_arrays, config_file_location):
     for index_cal_array, cal_array in enumerate(images_arrays):
         for index_image_array, image_array in enumerate(cal_array):
 
-            filtered_array, masked_indices, percentage_masked = filter_individual(image_array, sigma_hi, sigma_low)
+            filtered_array, masked_indices, percentage_masked = image_processing.sigma_clip_individual(image_array, sigma_hi, sigma_low)
 
             logger.info("{0} ({1}% of total) pixels failed the sigma clipping on image #{2}".format(len(masked_indices),
                                                                                                     percentage_masked,
@@ -301,7 +288,7 @@ def run_median_filtering(images_arrays, config_file_location):
                 from {2} to {3} (high)".format(sigma_low, sigma_low +1, sigma_hi, sigma_hi + 1))
                 sigma_hi += 1
                 sigma_low += 1
-                filtered_array, masked_indices, percentage_masked = filter_individual(image_array, sigma_hi,sigma_low)
+                filtered_array, masked_indices, percentage_masked = image_processing.sigma_clip_individual(image_array, sigma_hi,sigma_low)
                 logger.info("{0} ({1}% of total) pixels failed the sigma clipping on image #{2}".format(len(masked_indices),
                                                                                                         percentage_masked,
                                                                                                         index_image_array))
@@ -391,7 +378,7 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
             output.close()
 
         # If the array contains bad pixels that are adjacent, flag it
-        neighboring_bad_pixels = test_adjacent_pixels(arr)
+        neighboring_bad_pixels = image_processing.test_adjacent_pixels(arr)
         msg = "{0} neighboring bad pixels were found.".format(neighboring_bad_pixels)
         if neighboring_bad_pixels < 1:
             logger.info(msg)
@@ -414,27 +401,6 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
         output.close()
 
     return final_bad_pixel_set
-
-
-def test_adjacent_pixels(bad_pixel_list):
-    """Test if adjacent pixels were marked as 'bad', this indicates some irregular activity, since the probability of \
-    this happening naturally is very low
-
-    :param indiv_pixel_mask: An array of coordinates where each coordinate was the pixel that was marked as bad
-    :return: The number of bad pixels that were adjacent to each other
-
-    """
-    max_neighboring_bad_pixels = 0
-
-    for (row, col) in bad_pixel_list:
-        # count the number of bad pixels that are adjacent to each other
-        adjacent_bad_pixel_count = sum((r, c) in bad_pixel_list for (r,c) in [(row,col-1), (row,col+1), (row-1, col),
-                                                                              (row+1,col)])
-        if adjacent_bad_pixel_count > max_neighboring_bad_pixels:
-            max_neighboring_bad_pixels = adjacent_bad_pixel_count
-
-    return max_neighboring_bad_pixels
-
 
 def output_to_FITS(image_data, header_dict, filename, debug=True):
     """Generates a FITS v4 file from image data
