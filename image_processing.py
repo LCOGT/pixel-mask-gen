@@ -2,6 +2,7 @@ import fractions
 import numpy
 import math
 import astropy.stats
+import pdb
 
 # File to host the various image processing utilties needed, such as:
 # * Sigma Clipping
@@ -44,7 +45,7 @@ def test_adjacent_pixels(bad_pixel_list):
     max_neighboring_bad_pixels = 0
 
     for (row, col) in bad_pixel_list:
-        # count the number of bad pixels that are adjacent to each other
+        # count the number of bad pixels that are adjacent to each other -- excluding diagonal
         adjacent_bad_pixel_count = sum((r, c) in bad_pixel_list for (r,c) in [(row,col-1), (row,col+1), (row-1, col),
                                                                               (row+1,col)])
         if adjacent_bad_pixel_count > max_neighboring_bad_pixels:
@@ -211,23 +212,19 @@ def extract_center_fraction_region(original_image_data, fraction):
     if (row == 0) or (col == 0):
         raise ValueError('The array to be reduced has an invalid size.')
 
-    row_start, row_end = ((1 - fraction) * row) / 2, (((1-fraction) * row) / 2) + row/2
+    row_start, row_end = int(((1 - fraction) * row) / 2), int((((1-fraction) * row) / 2) + row/2)
 
     if (row == col): # If the image is a square
         col_start, col_end = row_start, row_end
 
     else:
-        col_start, col_end = ((1 - fraction) * col) / 2, (((1-fraction) * col) / 2) + col/2
+        col_start, col_end = int(((1 - fraction) * col)) / 2, int((((1-fraction) * col) / 2) + col/2)
 
-    top_left     = row_start, col_start
-    top_right    = row_start, col_end
-    bottom_right = row_end, col_end
-    bottom_left  = row_end, col_start
+    new_image_x, new_image_y = original_image_data.shape[0] // fraction.denominator, original_image_data.shape[1] // fraction.denominator
 
-    extracted_image = original_image_data[row_start:row_end][col_start:col_end]
+    #pdb.set_trace()
 
-    if (original_image_data.size / 4 != extracted_image.size):
-        raise ValueError("Error cropping image.")
+    extracted_image = original_image_data[new_image_y : -new_image_y, new_image_x : -new_image_x]
 
     return extracted_image
 
