@@ -12,6 +12,7 @@ import collections
 import glob
 import pdb
 import astropy.io
+import fractions
 
 # Internal imports
 import script
@@ -78,20 +79,107 @@ class TestsImageProcessingUtilities(unittest.TestCase):
 
 
     @unittest.skip('Not implemented')
-    def test_bias_filtering(self):
-        pass
+    def test_bias_processing(self):
+        # Do nearly the same process as flats
+        test_image_num = 5
+        test_image_size = 5,5
 
-    @unittest.skip('Not implemented')
-    def test_flat_filtering(self):
-        pass
+        test_images_list = []
 
-    @unittest.skip('Not implemented')
-    def test_dark_filtering(self):
-        pass
+        bad_pixel = random.randint(0, min(test_image_size)), \
+                    random.randint(0, min(test_image_size))
 
-    @unittest.skip('Not implemented')
+        for image_index in range(test_image_num):
+            random_array = numpy.random.randint(2, size=test_image_size)
+
+            if random.getrandbits(1):
+                random_array[bad_pixel] = sys.maxsize - 1
+
+            test_images_list.append(image_object.ImageObject(random_array, {}))
+
+        masked_indices = image_processing.flats_processing(test_images_list)
+
+        self.assertEqual(masked_indices.size, 1)
+
+
+    def test_flat_processing(self):
+        # TODO: Use the setup/teardown methods for the processing types
+        # Do a near identical process as flats
+        test_image_num = 5
+        test_image_size = 5,5
+
+        test_images_list = []
+
+        bad_pixel = random.randint(0, min(test_image_size)), \
+                    random.randint(0, min(test_image_size))
+
+        for image_index in range(test_image_num):
+            random_array = numpy.random.randint(2, size=test_image_size)
+
+            if random.getrandbits(1):
+                random_array[bad_pixel] = sys.maxsize - 1
+
+            test_images_list.append(image_object.ImageObject(random_array, {}))
+
+        masked_indices = image_processing.flats_processing(test_images_list)
+
+        self.assertEqual(masked_indices.size, 1)
+
+    def test_dark_processing(self):
+        # Create 5 image objects to represent 3 randomly generated images
+        # Pick one pixel from one of the arrays that will be set to a known-bad value
+        # Ensure it gets filtered
+
+        test_image_num = 5
+        test_image_size = 5,5
+        # a list of numpy arrays that will represent our images?
+        test_images_list = []
+
+        # Pick a random pixel to use for testing
+        bad_pixel = random.randint(0, min(test_image_size)), \
+                    random.randint(0, min(test_image_size))
+
+        for image_index in range(test_image_num):
+            random_array = numpy.random.randint(2, size=test_image_size)
+            image_header={'EXPTIME': random.uniform(1,10)}
+
+            # Basically flip a coin and see if the bad pixel should be set
+            if random.getrandbits(1):
+                random_array[bad_pixel] = sys.maxsize - 1
+
+            test_images_list.append(image_object.ImageObject(random_array, image_header))
+
+        masked_indexes = image_processing.darks_processing(test_images_list)
+
+        self.assertEqual(masked_indexes.size, 1)
+
+
     def test_center_region_extraction(self):
-        pass
+        """
+
+        For the testing array of:
+
+        1,  2,  3,  4
+        5,  6,  7,  8
+        9,  10, 11, 12
+        13, 14, 15, 16
+
+        The center quarter is 6, 7, 10, 11
+
+        :return:
+        """
+
+        test_array = numpy.array([1,2,3,4],
+                                  [5,6,7,8],
+                                  [9,10,11,12],
+                                  [13,14,15,16])
+
+        expected_array = numpy.array([6,7],
+                                     [10,11])
+
+        self.assertEqual(image_processing.extract_center_fraction_region(test_array,\
+                                                                         fractions.Fraction(1,4)),\
+                         expected_array)
 
 class TestDateParsingAndPrefixes(unittest.TestCase):
 
