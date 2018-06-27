@@ -68,9 +68,11 @@ def darks_processing(image_objects):
     """
 
     corrected_image_list = []
+
+    pdb.set_trace()
     for image in image_objects:
         # Divide every pixel in the image by its exposure time, then store the new 'image' in a list
-        exposure_time = image.get_image_headers(key='EXPTIME')
+        exposure_time = image.get_image_header(key='EXPTIME')
         corrected_image = numpy.divide(image.get_image_data(), exposure_time)
         corrected_image_list.append(corrected_image)
 
@@ -78,7 +80,7 @@ def darks_processing(image_objects):
     total_image_cube = numpy.dstack(tuple(corrected_image_list))
 
     # compute the per-pixel mean, this should be in a 2D array
-    per_pixel_mean = numpy.mean(total_image_cube, axis=3)
+    per_pixel_mean = numpy.mean(total_image_cube, axis=2)
 
     # (scalar) median from every pixel
     pixels_median = numpy.median(per_pixel_mean)
@@ -124,8 +126,11 @@ def flats_processing(image_objects):
     # connects the images
     corrected_images_cube = numpy.dstack(tuple(corrected_images_list))
 
+    pdb.set_trace()
+
     # Take the standard deviation of each pixel across all images
-    std_deviations_array = numpy.std(corrected_images_cube, axis=3)
+    # remember that axes are 0-indexed
+    std_deviations_array = numpy.std(corrected_images_cube, axis=2)
 
     mad = astropy.stats.median_absolute_deviation(std_deviations_array)
 

@@ -79,7 +79,6 @@ class TestsImageProcessingUtilities(unittest.TestCase):
         self.assertEqual(3, masked_array.sum())
 
 
-    @unittest.skip('Not implemented')
     def test_bias_processing(self):
         # Do nearly the same process as flats
         test_image_num = 5
@@ -102,7 +101,7 @@ class TestsImageProcessingUtilities(unittest.TestCase):
 
         self.assertEqual(masked_indices.size, 1)
 
-    @unittest.skip('j')
+
     def test_flat_processing(self):
         # TODO: Use the setup/teardown methods for the processing types
         # Do a near identical process as flats
@@ -126,7 +125,6 @@ class TestsImageProcessingUtilities(unittest.TestCase):
 
         self.assertEqual(masked_indices.size, 1)
 
-    @unittest.skip('f')
     def test_dark_processing(self):
         # Create 5 image objects to represent 3 randomly generated images
         # Pick one pixel from one of the arrays that will be set to a known-bad value
