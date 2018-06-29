@@ -64,9 +64,8 @@ def darks_processing(image_objects):
 
     :param image_objects:
     :return:  An array of tuples were each tuple contains a pixel location that was flagged from the flats images.
-
+    :rtype: numpy.ndarray
     """
-
     corrected_image_list = []
 
     for image in image_objects:
@@ -109,8 +108,9 @@ def flats_processing(image_objects):
     deviations of the median.
 
 
-    :param image_data:
+    :param image_objects: an array of image ojbects
     :return: An array of tuples were each tuple contains a pixel location that was flagged from the flats images.
+    :rtype: numpy.ndarray
     """
 
     images_datas = [image.get_image_data() for image in image_objects]
@@ -121,7 +121,7 @@ def flats_processing(image_objects):
         center_quarter_median = numpy.median(center_quarter)
         corrected_image = numpy.divide(image_data, center_quarter_median)
         corrected_images_list.append(corrected_image)
-        
+
     # Create a 3D array out of all the corrected images, where (x,y) plane is the original image and the z-axis is what
     # connects the images
     corrected_images_cube = numpy.dstack(tuple(corrected_images_list))
@@ -141,7 +141,7 @@ def flats_processing(image_objects):
 
     return masked_indices
 
-def biases_processing(image_objects, sigma_min, sigma_max):
+def biases_processing(image_objects, sigma_min=5, sigma_max=5):
     """**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -153,8 +153,8 @@ def biases_processing(image_objects, sigma_min, sigma_max):
     :param image_objects: A list of image objects
     :param sigma_min: the lower sigma threshold to use
     :param sigma_max: the upper sigma threshold to use
-    :return: An array of tuples were each tuple contains a pixel location that was flagged from the bias images.
-
+    :return: A list of tuples where each tuple contains a pixel location that was flagged from the bias images.
+    :rtype: list
     """
 
     corrected_images_list = []
@@ -168,52 +168,27 @@ def biases_processing(image_objects, sigma_min, sigma_max):
 
         corrected_image = numpy.subtract(image_data, center_quarter_median)
 
-
         corrected_images_list.append(corrected_image)
 
-        sclipped_image = astropy.stats.sigma_clip(data=corrected_image)
+        sclipped_image = astropy.stats.sigma_clip(data=corrected_image,sigma_lower=sigma_min, sigma_upper=sigma_max)
 
         masked_indices = numpy.transpose(numpy.ma.getmask(sclipped_image).nonzero())
 
         masked_indices_list.append(masked_indices)
 
-        #pdb.set_trace()
-
     # Return a flattened list containing all coordinates that failed the sigma clipping
-
-    #pdb.set_trace()
     return [tuple(coords) for sublist in masked_indices_list for coords in sublist]
 
 
 def extract_center_fraction_region(original_image_data, fraction):
-    r"""Extract and return the center fraction of an image.
-
-    Given the fraction :math:`f`, the new region will be delineated by the coordinates:
-
-    .. math::
-
-       \left( \frac{(1-f)}{2} r,               \frac{(1-f)}{2} c \right)
-
-    .. math::
-
-       \left( \frac{(1-f)}{2} r,               \frac{(1-f)}{2} c + \frac{c}{2} \right)
-
-    .. math::
-
-       \left( \frac{(1-f)}{2} r + \frac{r}{2}, \frac{(1-f)}{2} c + \frac{c}{2} \right)
-
-    .. math::
-
-       \left( \frac{(1-f)}{2} r + \frac{r}{2}, \frac{(1-f)}{2} c \right)
-
+    r"""Extract and return the center fraction of an image
 
     :param fraction: A Fraction object
     :param original_image_data:
-    :return:
+    :return: The center fraction of the original image
+    :rtype: numpy.ndarray
 
     """
-
-    # First compute the coordinates, and then perform the array slicing
 
     row,col = original_image_data.shape
 
@@ -222,15 +197,13 @@ def extract_center_fraction_region(original_image_data, fraction):
 
     row_start, row_end = int(((1 - fraction) * row) / 2), int((((1-fraction) * row) / 2) + row/2)
 
-    if (row == col): # If the image is a square
+    if row == col: # the image is a square
         col_start, col_end = row_start, row_end
 
     else:
         col_start, col_end = int(((1 - fraction) * col)) / 2, int((((1-fraction) * col) / 2) + col/2)
 
     new_image_x, new_image_y = original_image_data.shape[0] // fraction.denominator, original_image_data.shape[1] // fraction.denominator
-
-    #pdb.set_trace()
 
     extracted_image = original_image_data[new_image_y : -new_image_y, new_image_x : -new_image_x]
 

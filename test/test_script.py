@@ -79,83 +79,6 @@ class TestsImageProcessingUtilities(unittest.TestCase):
         self.assertEqual(3, masked_array.sum())
 
 
-    def test_bias_processing(self):
-        # Do nearly the same process as flats
-        test_image_num = 5
-        test_image_size = 16,16
-        max_pixel_value = 10
-
-        test_images_list = []
-
-        bad_pixel = random.randint(0, min(test_image_size) - 1), \
-                    random.randint(0, min(test_image_size) - 1)
-
-        for image_index in range(test_image_num):
-            random_array = numpy.random.randint(max_pixel_value, size=test_image_size)
-
-            if random.getrandbits(1):
-                random_array[bad_pixel] = sys.maxsize - 1
-
-            test_images_list.append(image_object.ImageObject(random_array, {}))
-
-        masked_indices = image_processing.biases_processing(test_images_list, sigma_min=3, sigma_max=3)
-
-        self.assertGreaterEqual(len(masked_indices), 1)
-
-    def test_flat_processing(self):
-        # TODO: Use the setup/teardown methods for the processing types
-        # Do a near identical process as flats
-        test_image_num = 5
-        test_image_size = 16,16
-        max_pixel_value = 10
-
-        test_images_list = []
-
-        bad_pixel = random.randint(0, min(test_image_size) - 1), \
-                    random.randint(0, min(test_image_size) - 1)
-
-        for image_index in range(test_image_num):
-            random_array = numpy.random.randint(max_pixel_value, size=test_image_size)
-
-            if random.getrandbits(1):
-                random_array[bad_pixel] = sys.maxsize - 1
-
-            test_images_list.append(image_object.ImageObject(random_array, {}))
-
-        masked_indices = image_processing.flats_processing(test_images_list)
-
-        self.assertGreaterEqual(len(masked_indices), 1)
-
-    def test_dark_processing(self):
-        # Create 5 image objects to represent 3 randomly generated images
-        # Pick one pixel from one of the arrays that will be set to a known-bad value
-        # Ensure it gets filtered
-
-        test_image_num = 5
-        test_image_size = 16,16
-        max_pixel_value = 10
-        # a list of numpy arrays that will represent our images?
-        test_images_list = []
-
-        # Pick a random pixel to use for testing
-        bad_pixel = random.randint(0, min(test_image_size) - 1), \
-                    random.randint(0, min(test_image_size) - 1)
-
-        for image_index in range(test_image_num):
-            random_array = numpy.random.randint(max_pixel_value, size=test_image_size)
-            image_header={'EXPTIME': random.uniform(1,10)}
-
-            # Basically flip a coin and see if the bad pixel should be set
-            if random.getrandbits(1):
-                random_array[bad_pixel] = sys.maxsize - 1
-
-            test_images_list.append(image_object.ImageObject(random_array, image_header))
-
-        masked_indexes = image_processing.darks_processing(test_images_list)
-
-        self.assertGreaterEqual(len(masked_indexes), 1)
-
-
     def test_center_region_extraction(self):
         """
 
@@ -182,6 +105,65 @@ class TestsImageProcessingUtilities(unittest.TestCase):
         extracted_array = image_processing.extract_center_fraction_region(test_array, fractions.Fraction(1,4))
 
         self.assertTrue(numpy.array_equal(expected_array, extracted_array))
+
+class TestImageProcessingCoreFunctions(unittest.TestCase):
+
+    def setUp(self):
+        # Set up a set of random arrays that will serve as the test data
+        num_of_test_images = 10
+
+        # set a maximum image value for a pixel, 10 is a good number
+        max_pixel_value = num_of_test_images
+
+        # to make the fractioning easy, use a factor of 4
+        test_image_size = 16, 16
+
+        self.test_images_list = []
+
+        # randomly choose an index that will serve as the location of the bad pixel
+        bad_pixel = ( random.randint(0, min(test_image_size) - 1), \
+                    random.randint(0, min(test_image_size) - 1) )
+
+        # This is only needed by the darks
+        image_header={'EXPTIME': random.uniform(1,10)}
+
+        self.expected_bad_pixel_count = 0
+
+        for image_index in range(num_of_test_images):
+            # this is the array that is going to represent an image
+            random_array = numpy.random.randint(max_pixel_value, size=test_image_size)
+
+            # 'flip' a coin to see if the current image is giong to have a bad pixel in it
+            if random.getrandbits(1):
+                # Pick the value that is going to actually be set in the bad pixel, dont use negative numbers since
+                # our array will be converted to uint8
+                # If the bad pixel is set, it needs to show up
+                random_array[bad_pixel] = sys.maxsize - 1
+                self.expected_bad_pixel_count += 1
+
+
+            self.test_images_list.append(image_object.ImageObject(random_array, image_header))
+
+        if len(self.test_images_list) != num_of_test_images:
+            raise unittest.SkipTest("Test skipped, unable to create to testing images.")
+
+    def tearDown(self):
+        pass
+
+    def test_bias_processing(self):
+        masked_indices = image_processing.biases_processing(self.test_images_list, sigma_min=3, sigma_max=3)
+
+        self.assertGreaterEqual(len(masked_indices), self.expected_bad_pixel_count)
+
+    def test_flat_processing(self):
+        masked_indices = image_processing.flats_processing(self.test_images_list)
+
+        self.assertGreaterEqual(len(masked_indices), self.expected_bad_pixel_count)
+
+    def test_dark_processing(self):
+        masked_indexes = image_processing.darks_processing(self.test_images_list)
+
+        self.assertGreaterEqual(len(masked_indexes), self.expected_bad_pixel_count)
 
 class TestDateParsingAndPrefixes(unittest.TestCase):
 
