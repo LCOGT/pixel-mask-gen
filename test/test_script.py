@@ -83,6 +83,7 @@ class TestsImageProcessingUtilities(unittest.TestCase):
         # Do nearly the same process as flats
         test_image_num = 5
         test_image_size = 16,16
+        max_pixel_value = 10
 
         test_images_list = []
 
@@ -90,7 +91,7 @@ class TestsImageProcessingUtilities(unittest.TestCase):
                     random.randint(0, min(test_image_size) - 1)
 
         for image_index in range(test_image_num):
-            random_array = numpy.random.randint(2, size=test_image_size)
+            random_array = numpy.random.randint(max_pixel_value, size=test_image_size)
 
             if random.getrandbits(1):
                 random_array[bad_pixel] = sys.maxsize - 1
@@ -101,20 +102,20 @@ class TestsImageProcessingUtilities(unittest.TestCase):
 
         self.assertGreaterEqual(len(masked_indices), 1)
 
-    @unittest.skip('f')
     def test_flat_processing(self):
         # TODO: Use the setup/teardown methods for the processing types
         # Do a near identical process as flats
         test_image_num = 5
         test_image_size = 16,16
+        max_pixel_value = 10
 
         test_images_list = []
 
-        bad_pixel = random.randint(0, min(test_image_size) -1 ), \
-                    random.randint(0, min(test_image_size) -1 )
+        bad_pixel = random.randint(0, min(test_image_size) - 1), \
+                    random.randint(0, min(test_image_size) - 1)
 
         for image_index in range(test_image_num):
-            random_array = numpy.random.randint(2, size=test_image_size)
+            random_array = numpy.random.randint(max_pixel_value, size=test_image_size)
 
             if random.getrandbits(1):
                 random_array[bad_pixel] = sys.maxsize - 1
@@ -123,9 +124,8 @@ class TestsImageProcessingUtilities(unittest.TestCase):
 
         masked_indices = image_processing.flats_processing(test_images_list)
 
-        self.assertEqual(masked_indices.size, 1)
+        self.assertGreaterEqual(len(masked_indices), 1)
 
-    @unittest.skip('g')
     def test_dark_processing(self):
         # Create 5 image objects to represent 3 randomly generated images
         # Pick one pixel from one of the arrays that will be set to a known-bad value
@@ -133,15 +133,16 @@ class TestsImageProcessingUtilities(unittest.TestCase):
 
         test_image_num = 5
         test_image_size = 16,16
+        max_pixel_value = 10
         # a list of numpy arrays that will represent our images?
         test_images_list = []
 
         # Pick a random pixel to use for testing
-        bad_pixel = random.randint(0, min(test_image_size)), \
-                    random.randint(0, min(test_image_size))
+        bad_pixel = random.randint(0, min(test_image_size) - 1), \
+                    random.randint(0, min(test_image_size) - 1)
 
         for image_index in range(test_image_num):
-            random_array = numpy.random.randint(2, size=test_image_size)
+            random_array = numpy.random.randint(max_pixel_value, size=test_image_size)
             image_header={'EXPTIME': random.uniform(1,10)}
 
             # Basically flip a coin and see if the bad pixel should be set
@@ -152,7 +153,7 @@ class TestsImageProcessingUtilities(unittest.TestCase):
 
         masked_indexes = image_processing.darks_processing(test_images_list)
 
-        self.assertGreaterEqual(masked_indexes.size, 1)
+        self.assertGreaterEqual(len(masked_indexes), 1)
 
 
     def test_center_region_extraction(self):

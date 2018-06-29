@@ -116,35 +116,30 @@ def flats_processing(image_objects):
     images_datas = [image.get_image_data() for image in image_objects]
     corrected_images_list = []
 
-    try:
-        for image_data in images_datas:
-            center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1,4))
-            center_quarter_median = numpy.median(center_quarter)
-            corrected_image = numpy.divide(image_data, center_quarter_median)
-            corrected_images_list.append(corrected_image)
+    for image_data in images_datas:
+        center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1,4))
+        center_quarter_median = numpy.median(center_quarter)
+        corrected_image = numpy.divide(image_data, center_quarter_median)
+        corrected_images_list.append(corrected_image)
+        
+    # Create a 3D array out of all the corrected images, where (x,y) plane is the original image and the z-axis is what
+    # connects the images
+    corrected_images_cube = numpy.dstack(tuple(corrected_images_list))
 
-        # Create a 3D array out of all the corrected images, where (x,y) plane is the original image and the z-axis is what
-        # connects the images
-        corrected_images_cube = numpy.dstack(tuple(corrected_images_list))
+    # Take the standard deviation of each pixel across all images
+    # remember that axes are 0-indexed
+    std_deviations_array = numpy.std(corrected_images_cube, axis=2)
 
-        # Take the standard deviation of each pixel across all images
-        # remember that axes are 0-indexed
-        std_deviations_array = numpy.std(corrected_images_cube, axis=2)
+    mad = astropy.stats.median_absolute_deviation(std_deviations_array)
 
-        mad = astropy.stats.median_absolute_deviation(std_deviations_array)
+    # once you have the MAD, mask any values outside the range of 2*MAD?
+    range_start, range_end = mad - 2*mad, mad + 2*mad
 
-        # once you have the MAD, mask any values outside the range of 2*MAD?
-        range_start, range_end = mad - 2*mad, mad + 2*mad
+    filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start, range_end)
 
-        filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start, range_end)
+    masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
 
-        masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
-
-        return masked_indices
-
-    except AttributeError:
-        pdb.set_trace()
-
+    return masked_indices
 
 def biases_processing(image_objects, sigma_min, sigma_max):
     """**Algorithm**
@@ -186,7 +181,7 @@ def biases_processing(image_objects, sigma_min, sigma_max):
 
     # Return a flattened list containing all coordinates that failed the sigma clipping
 
-    pdb.set_trace()
+    #pdb.set_trace()
     return [tuple(coords) for sublist in masked_indices_list for coords in sublist]
 
 
