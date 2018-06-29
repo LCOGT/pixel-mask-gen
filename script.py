@@ -29,6 +29,7 @@ def main(arg1):
     for identifier in range(0, 99):
         camera_id_number = str(identifier).zfill(2)
         try:
+            '''
             image_list, prefixes_list, full_camera_name = retrieve_image_directory_information(arg1,
                                                                                                camera_id_number)
 
@@ -44,6 +45,27 @@ def main(arg1):
             output_to_FITS(final_bpm_mask, image_header, "{}_bpm.fits".format(full_camera_name))
 
             logger.info("Exiting main function.")
+            '''
+
+            image_list, prefixes_list, full_camera_name = retrieve_image_directory_information(arg1, camera_id_number)
+            bias_array,dark_array,flat_array,image_header,rows,columns = extract_data_from_files(image_list, prefixes_list)
+
+            bias_bad_pixels = image_processing.biases_processing(bias_array)
+
+            dark_bad_pixels = image_processing.darks_processing(dark_array)
+
+            flat_bad_pixels = image_processing.flats_processing(flat_array)
+
+            final_bpm_list = combine_bad_pixel_locations([bias_bad_pixels, dark_bad_pixels, flat_bad_pixels])
+
+            final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, rows, columns)
+
+            output_to_FITS(final_bpm_mask, {}, "{}_bpm.fits".format(full_camera_name))
+
+            logger.info('Exiting main function.')
+
+
+
 
         except FileNotFoundError:
             logger.info("Unable to find any folders that contained the desired camera prefix and identifier ({0})".format(camera_id_number))
@@ -186,9 +208,12 @@ def extract_data_from_files(image_list, prefixes_array):
     to what calibration type the image corresponds to.
 
     :param image_list: A list of absolute filenames for images to search for.
+
     :param prefixes_array: An array of prefixes from the config.yml file that denote bias,dark,light
+
     :returns (bias|dark|flat) array: a list of numpy arrays, each numpy array represents one image \
     rows and cols are the sizes of the images
+
     :returns image_header: the image header stored from the last image
 
     """
@@ -214,7 +239,8 @@ def extract_data_from_files(image_list, prefixes_array):
                 image = image_object.ImageObject(image_data, image_headers)
 
                 arr_string = prefix[0] + "_array"
-                eval(arr_string + '.append(image_data)') # example: b_array.append(image_data)
+                #eval(arr_string + '.append(image_data)') # example: b_array.append(image_data)
+                eval(arr_string + '.append(image)') # example: b_array.append(image)
 
                 # once you've found the matching prefix, stop checking for other prefixes -- at
                 # most once prefix can match
@@ -373,6 +399,7 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
     for index, arr in enumerate(arrays_of_bad_pixels):
         logger.info("{0} bad pixels were detected for calibration type #{1}".format(len(arr), index))
         indiv_file_path = os.path.join("debug","{0}_bpm.txt".format(index))
+        logger.info('Writing bad pixel to debugging directory')
         with open(indiv_file_path, 'w') as output:
             output.write(''.join(map(str, arr)))
             output.close()
@@ -422,14 +449,17 @@ def output_to_FITS(image_data, header_dict, filename, debug=True):
                                                                                                        image_data.sum()))
         new_hdu_list = astropy.io.fits.HDUList([new_hdu])
 
+    # Do you really need to set every header, or is it fine to just set the OBSTYPE header?
+    '''
     for key, value in header_dict.items():
         if key == 'OBSTYPE':
             # needed so that Banzai can recognize the image as a bad pixel mask
             new_hdu_list[0].header.set(key, 'BPM')
         new_hdu_list[0].header.set(key, value)
+    '''
+    new_hdu_list[0].header.set('OBSTYPE', 'BPM')
 
     todays_date = datetime.datetime.today().strftime("%Y%m%d")
-
 
     if debug == True:
         logger.info("Writing debugging information to /debug/")

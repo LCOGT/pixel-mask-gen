@@ -3,6 +3,9 @@ import numpy
 import math
 import astropy.stats
 import pdb
+import logging
+
+import script
 
 # File to host the various image processing utilties needed, such as:
 # * Sigma Clipping
@@ -66,6 +69,8 @@ def darks_processing(image_objects):
     :return:  An array of tuples were each tuple contains a pixel location that was flagged from the flats images.
     :rtype: numpy.ndarray
     """
+
+    logging.info("Beginning darks processing with {0} images".format(len(image_objects)))
     corrected_image_list = []
 
     for image in image_objects:
@@ -113,6 +118,8 @@ def flats_processing(image_objects):
     :rtype: numpy.ndarray
     """
 
+    logging.info("Beginning flats processing on {0} images".format(len(image_objects)))
+
     images_datas = [image.get_image_data() for image in image_objects]
     corrected_images_list = []
 
@@ -157,6 +164,8 @@ def biases_processing(image_objects, sigma_min=5, sigma_max=5):
     :rtype: list
     """
 
+    logging.info("Beginning processing on {0} bias images".format(len(image_objects)))
+
     corrected_images_list = []
 
     images_datas = [image.get_image_data() for image in image_objects]
@@ -190,6 +199,7 @@ def extract_center_fraction_region(original_image_data, fraction):
 
     """
 
+    logging.info("Beginning center fraction extraction of image with shape: {0}".format(original_image_data.shape))
     row,col = original_image_data.shape
 
     if (row == 0) or (col == 0):

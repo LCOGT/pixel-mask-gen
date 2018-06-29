@@ -303,7 +303,8 @@ class TestConfigurationFileIssues(unittest.TestCase):
         with self.assertRaises(FileNotFoundError):
             script.retrieve_image_directory_information('nonexistent_file.yml', '69')
 
-@unittest.skip('Testing')
+
+#@unittest.skip('Testing')
 class TestFullEndtoEnd(unittest.TestCase):
 
     def setUp(self):
@@ -347,11 +348,11 @@ class TestFullEndtoEnd(unittest.TestCase):
         subprocess.run(['mkdir', '-p', fake_image_path], check=True)
 
         # Once the path is setup, you know where to put the fits files you will create, so get ready to start creating them
-        test_images = 12
+        test_images = 10
         self.bad_pixel_locations = []
-        self.image_dimensions = 2000, 2000
+        self.image_dimensions = 100, 100
 
-        max_pixel_val = 2
+        max_pixel_val = 10
         print("Preparing to generate fake images into directory: {0}".format(fake_image_path))
         # select a random tuple to serve as the coordinates 'marked' pixel
         # use min to prevent an indexerror
@@ -373,7 +374,8 @@ class TestFullEndtoEnd(unittest.TestCase):
             new_hdu = astropy.io.fits.PrimaryHDU(image_data.astype(numpy.uint8))
             new_hdu_list = astropy.io.fits.HDUList([new_hdu])
 
-            new_hdu_list[0].header.set('OBSTYPE', 'BPM')
+            #new_hdu_list[0].header.set('OBSTYPE', 'BPM')
+            new_hdu_list[0].header.set('EXPTIME', random.uniform(1,10))
             new_hdu_list.writeto(test_image_filename,overwrite=False,output_verify='exception')
             new_hdu_list.close()
 
