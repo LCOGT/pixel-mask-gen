@@ -11,9 +11,12 @@ import logging
 import sys
 import errno
 import pdb
+
+
 # Internal
 import image_object
 import image_processing
+import fits_utilities
 
 def main(arg1):
     """This function will execute when the module is run in main context.
@@ -60,12 +63,9 @@ def main(arg1):
 
             final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, rows, columns)
 
-            output_to_FITS(final_bpm_mask, {}, "{}_bpm.fits".format(full_camera_name))
+            fits_utilities.output_to_FITS(final_bpm_mask, {}, "{}_bpm.fits".format(full_camera_name))
 
             logger.info('Exiting main function.')
-
-
-
 
         except FileNotFoundError:
             logger.info("Unable to find any folders that contained the desired camera prefix and identifier ({0})".format(camera_id_number))
@@ -179,30 +179,6 @@ def retrieve_image_directory_information(config_file_location, camera_identifier
         return (image_list, prefixes_list, directory_info['camera_prefix'] + camera_identifier)
 
 
-def read_individual_fits_file(filename):
-    """
-
-    :param filename: The absolute filename of a FITS image
-
-
-    :returns image_data: A numpy array representing the data in the image
-    :returns image_header_info: A dictionary object representing the header information for the last image. The \
-                important header information will not change from image to image usually
-    :returns image_shape: A tuple in the form (x,y) where x denotes the number of rows and y denotes the number of columns
-
-    """
-
-    logger.info("Reading FITS file: {0}".format(filename))
-
-    image_file = astropy.io.fits.open(filename)
-    image_data = image_file[0].data
-    image_header_info = image_file[0].header
-    image_shape = image_data.shape
-
-    image_file.close()
-
-    return image_data, image_header_info, image_shape
-
 def extract_data_from_files(image_list, prefixes_array):
     """Takes in a list of FITS filenames, converts FITS data into numpy arrays, and then stores that FITS info according \
     to what calibration type the image corresponds to.
@@ -233,7 +209,7 @@ def extract_data_from_files(image_list, prefixes_array):
         # will tell you what array it should go into
         for prefix in prefixes_array:
             if image_filename.endswith("{0}.fits".format(prefix)):
-                image_data, image_headers, image_shape = read_individual_fits_file(image_filename)
+                image_data, image_headers, image_shape = fits_utilities.read_individual_fits_file(image_filename)
 
                 # Create image object
                 image = image_object.ImageObject(image_data, image_headers)
@@ -242,8 +218,7 @@ def extract_data_from_files(image_list, prefixes_array):
                 #eval(arr_string + '.append(image_data)') # example: b_array.append(image_data)
                 eval(arr_string + '.append(image)') # example: b_array.append(image)
 
-                # once you've found the matching prefix, stop checking for other prefixes -- at
-                # most once prefix can match
+                # once you've found the matching prefix, stop checking for other prefixes -- at most once prefix can match
                 break
 
     # not all arrays can be empty here or something went wrong
@@ -254,7 +229,6 @@ def extract_data_from_files(image_list, prefixes_array):
         logger.info("Data extraction from FITS files complete. {0} images parsed in total".format(len(b_array) + \
                                                                                                   len(f_array) + \
                                                                                                   len(d_array)))
-
     # return the arrays in alphabetical order
     return (b_array, d_array, f_array, image_headers, image_shape[0], image_shape[1])
 
@@ -318,7 +292,6 @@ def run_sigma_clipping(images_arrays, config_file_location):
                 logger.info("{0} ({1}% of total) pixels failed the sigma clipping on image #{2}".format(len(masked_indices),
                                                                                                         percentage_masked,
                                                                                                         index_image_array))
-
             if (index_cal_array == 0):
                 bias_bpm_collection.append(masked_indices)
 
@@ -432,62 +405,6 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
 
     return final_bad_pixel_set
 
-def output_to_FITS(image_data, header_dict, filename, debug=True):
-    """Generates a FITS v4 file from image data
-
-    :param image_data: A numpy array, will be used for the primary header.
-    :param header_dict: A dictionary used for the header data unit key/value pairs.
-    :param filename: The destination file name for the FITS file.
-    :return: None
-
-    """
-    # See: https://fits.gsfc.nasa.gov/fits_primer.html for info about FITS
-
-    if image_data.size < 1:
-        raise ValueError("No data to write to Primary HDU.")
-
-    else:
-        new_hdu = astropy.io.fits.PrimaryHDU(image_data.astype(numpy.uint8))
-        logger.info("Writing array of size {0} to file; array contains {1} bad pixels in mask.".format(image_data.shape,
-                                                                                                       image_data.sum()))
-        new_hdu_list = astropy.io.fits.HDUList([new_hdu])
-
-    # Do you really need to set every header, or is it fine to just set the OBSTYPE header?
-    '''
-    for key, value in header_dict.items():
-        if key == 'OBSTYPE':
-            # needed so that Banzai can recognize the image as a bad pixel mask
-            new_hdu_list[0].header.set(key, 'BPM')
-        new_hdu_list[0].header.set(key, value)
-    '''
-    new_hdu_list[0].header.set('OBSTYPE', 'BPM')
-
-    todays_date = datetime.datetime.today().strftime("%Y%m%d")
-
-    if debug == True:
-        logger.info("Writing debugging information to /debug/")
-        # For debugging purposes, write the mask and the header file into a text file
-        final_bpm_txtfile_path = os.path.join('debug', todays_date + "-" + filename + ".txt")
-
-        with open(str(final_bpm_txtfile_path), 'w') as final_bpm_txtfile:
-            final_bpm_txtfile.write(''.join(map(str, [coords for coords in image_data])))
-            final_bpm_txtfile.write('==========')
-            final_bpm_txtfile.write('HEADERS\n')
-            header_string = ''
-            for key, value in header_dict.items():
-                final_bpm_txtfile.write("key: {0}, value: {1}\n".format(key, value))
-            final_bpm_txtfile.write(header_string)
-            final_bpm_txtfile.close()
-
-    new_hdu_list.writeto(todays_date + "-" + filename, overwrite=True, output_verify='exception',checksum=True)
-
-    new_hdu_list.close()
-
-    # after closing the file, ensure that the file it wrote to was not empty.
-    if (os.stat(filename).st_size < 10):
-        raise ValueError('It appears the FITS file given from the data could not be written to.')
-
-
 def get_last_date_of_unit(todays_date, string):
     """Returns the latest date that falls within the last month or week.
     For example, if today is Thursday, June 7th, 2018, then get_last_date_of_unit(week) will return \
@@ -545,6 +462,7 @@ def parse_config_file_date(directory_info):
             logger.info("Invalid relative date in configuration file, reverting to yesterday's date.")
             return (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
 
+global logger
 logger = setup_custom_logger('pixel-mask-gen')
 
 if __name__ == '__main__':

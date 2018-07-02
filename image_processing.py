@@ -1,18 +1,8 @@
 import fractions
 import numpy
-import math
 import astropy.stats
 import pdb
 import logging
-
-import script
-
-# File to host the various image processing utilties needed, such as:
-# * Sigma Clipping
-# * Flat processing
-# * Dark processing
-# * Light processing
-# * Adjacent pixel testing
 
 def sigma_clip_individual(image_array, sigma_hi, sigma_low):
     """Applies the median filter to one image, and returns back diagnostic information.
@@ -39,9 +29,9 @@ def sigma_clip_individual(image_array, sigma_hi, sigma_low):
 
 def test_adjacent_pixels(bad_pixel_list):
     """Test if adjacent pixels were marked as 'bad', this indicates some irregular activity, since the probability of \
-    this happening naturally is very low
+    this happening naturally is very low.
 
-    :param indiv_pixel_mask: An array of coordinates where each coordinate was the pixel that was marked as bad
+    :param indiv_pixel_mask: A list of coordinates where each coordinate was the pixel that was marked as bad
     :return: The number of bad pixels that were adjacent to each other
 
     """
@@ -66,8 +56,8 @@ def darks_processing(image_objects):
     Set some percentage threshold :math:`t` and remove all pixels outside the range :math:`\bar{p}_{i,j}  \pm t`
 
     :param image_objects:
-    :return:  An array of tuples were each tuple contains a pixel location that was flagged from the flats images.
-    :rtype: numpy.ndarray
+    :return:  A list of tuples were each tuple contains a pixel location that was flagged from the darks images.
+    :rtype: list
     """
 
     logging.info("Beginning darks processing with {0} images".format(len(image_objects)))
@@ -96,7 +86,7 @@ def darks_processing(image_objects):
 
     masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
 
-    return masked_indices.tolist()
+    return [tuple(coordinates) for coordinates in masked_indices.tolist()]
 
 
 def flats_processing(image_objects):
@@ -114,8 +104,8 @@ def flats_processing(image_objects):
 
 
     :param image_objects: an array of image ojbects
-    :return: An array of tuples were each tuple contains a pixel location that was flagged from the flats images.
-    :rtype: numpy.ndarray
+    :return: A list of tuples where each tuple contains a pixel location that was flagged from the flats images.
+    :rtype: list
     """
 
     logging.info("Beginning flats processing on {0} images".format(len(image_objects)))
@@ -146,7 +136,7 @@ def flats_processing(image_objects):
 
     masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
 
-    return masked_indices.tolist()
+    return [tuple(coordinates) for coordinates in masked_indices.tolist()]
 
 def biases_processing(image_objects, sigma_min=5, sigma_max=5):
     """**Algorithm**

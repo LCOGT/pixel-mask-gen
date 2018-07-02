@@ -19,152 +19,8 @@ import errno
 import script
 import image_object
 import image_processing
+import fits_utilities
 
-class TestFitsFileIOUtilities(unittest.TestCase):
-
-    def test_writing_empty_array_to_fits_raises_exception(self):
-        empty_array = numpy.empty([0, 0])
-        with self.assertRaises(ValueError):
-            script.output_to_FITS(empty_array, {}, 'filename.fits')
-
-    def test_empty_image_file_raises_exception(self):
-    # make a list that contains the filename of one image
-    # create an empty file with that filename
-    # try to read in that filename, expect exception
-        testing_prefixes = []
-        empty_image_filename = os.path.join('test', 'empty_file.fits')
-
-        subprocess.run(['touch', empty_image_filename])
-        with self.assertRaises(IOError):
-            script.extract_data_from_files([empty_image_filename], [''])
-
-        subprocess.run(['rm', empty_image_filename])
-
-class TestsImageProcessingUtilities(unittest.TestCase):
-
-    def test_sigma_clipping(self):
-        random_array = numpy.random.randint(5, size=(5,5))
-        med, std = numpy.median(random_array), numpy.std(random_array)
-        filtered_array, masked_indices, _ = image_processing.sigma_clip_individual(random_array, \
-                                                                                   sigma_hi=1, \
-                                                                                   sigma_low = 1)
-
-        # we dont know how many iterations the algorithm will need to do, but we do know that its HIGHLY likely that at
-        # least one entry out of the 25 will need to be filtered
-        self.assertGreater(masked_indices.size, 1)
-
-    def test_adjacent_bad_pixels_detected(self):
-        # construct a list of tuples where each tuple is an x,y coordinate
-        # then at the end, take an existing coordinate and add 1 to the x-coordinate
-        sim_bad_pixels_list = []
-        for num in range(0,19):
-            sim_bad_pixels_list.append((random.randint(1,100), random.randint(1,100)))
-
-        existing_x_coord, existing_y_coord = sim_bad_pixels_list[random.randint(1,10)]
-
-        sim_bad_pixels_list.append((existing_x_coord +1, existing_y_coord))
-
-        # once neighboring bad pixel is added
-        adjacent_bad_pixels = image_processing.test_adjacent_pixels(sim_bad_pixels_list)
-        self.assertGreaterEqual(adjacent_bad_pixels, 1)
-
-
-    def test_generate_mask_from_bad_pixels(self):
-        # suppose there's bad pixels at the diagonals
-        bad_pixel_locations = [(1,1), (2,2), (3,3)]
-        bad_pixel_locations = [(1,1), (2,2), (3,3)]
-        zero_array = numpy.zeros((4,4),dtype=bool)
-
-        masked_array = script.generate_mask_from_bad_pixels(bad_pixel_locations, 4, 4)
-        # masked array should have 3 bad pixels in it
-        self.assertEqual(3, masked_array.sum())
-
-
-    def test_center_region_extraction(self):
-        """
-
-        For the testing array of:
-
-        1,  2,  3,  4
-        5,  6,  7,  8
-        9,  10, 11, 12
-        13, 14, 15, 16
-
-        The center quarter is 6, 7, 10, 11
-
-        :return:
-        """
-
-        test_array = numpy.array([[1,2,3,4],
-                                  [5,6,7,8],
-                                  [9,10,11,12],
-                                  [13,14,15,16]])
-
-        expected_array = numpy.array([[6,7],
-                                     [10,11]])
-
-        extracted_array = image_processing.extract_center_fraction_region(test_array, fractions.Fraction(1,4))
-
-        self.assertTrue(numpy.array_equal(expected_array, extracted_array))
-
-class TestImageProcessingCoreFunctions(unittest.TestCase):
-
-    def setUp(self):
-        # Set up a set of random arrays that will serve as the test data
-        num_of_test_images = 10
-
-        # set a maximum image value for a pixel, 10 is a good number
-        max_pixel_value = num_of_test_images
-
-        # to make the fractioning easy, use a factor of 4
-        test_image_size = 16, 16
-
-        self.test_images_list = []
-
-        # randomly choose an index that will serve as the location of the bad pixel
-        bad_pixel = ( random.randint(0, min(test_image_size) - 1), \
-                    random.randint(0, min(test_image_size) - 1) )
-
-        # This is only needed by the darks
-        image_header={'EXPTIME': random.uniform(1,10)}
-
-        self.expected_bad_pixel_count = 0
-
-        for image_index in range(num_of_test_images):
-            # this is the array that is going to represent an image
-            random_array = numpy.random.randint(max_pixel_value, size=test_image_size)
-
-            # 'flip' a coin to see if the current image is giong to have a bad pixel in it
-            if random.getrandbits(1):
-                # Pick the value that is going to actually be set in the bad pixel, dont use negative numbers since
-                # our array will be converted to uint8
-                # If the bad pixel is set, it needs to show up
-                random_array[bad_pixel] = sys.maxsize - 1
-                self.expected_bad_pixel_count += 1
-
-
-            self.test_images_list.append(image_object.ImageObject(random_array, image_header))
-
-        if len(self.test_images_list) != num_of_test_images:
-            raise unittest.SkipTest("Test skipped, unable to create to testing images.")
-
-    def tearDown(self):
-        pass
-
-    def test_bias_processing(self):
-        masked_indices = image_processing.biases_processing(self.test_images_list, sigma_min=3, sigma_max=3)
-
-        self.assertGreaterEqual(len(masked_indices), self.expected_bad_pixel_count)
-
-    def test_flat_processing(self):
-        masked_indices = image_processing.flats_processing(self.test_images_list)
-
-        self.assertGreaterEqual(len(masked_indices), self.expected_bad_pixel_count)
-
-    def test_dark_processing(self):
-        masked_indexes = image_processing.darks_processing(self.test_images_list)
-
-        self.assertGreaterEqual(len(masked_indexes), self.expected_bad_pixel_count)
 
 class TestDateParsingAndPrefixes(unittest.TestCase):
 
@@ -418,7 +274,7 @@ class TestFullEndtoEnd(unittest.TestCase):
             combined_bpm_mask_filename = os.path.abspath(fits_files_in_dir[0])
 
 
-        combined_bpm_data, combined_bpm_headers, combined_bpm_size = script.read_individual_fits_file(combined_bpm_mask_filename)
+        combined_bpm_data, combined_bpm_headers, combined_bpm_size = fits_utilities.read_individual_fits_file(combined_bpm_mask_filename)
 
         # The mask here should have the same amount of nonzero elements as your mask did earlier, to ensure that the
         # correct amount of bad pixels were detected
