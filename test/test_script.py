@@ -13,6 +13,7 @@ import glob
 import pdb
 import astropy.io
 import fractions
+import errno
 
 # Internal imports
 import script
@@ -407,15 +408,22 @@ class TestFullEndtoEnd(unittest.TestCase):
         # after the main script has run, read out the bpm file produced by that mask and test it against the saved mask earlier, they should match?
         # the final bpm is a .fits file in the main directory, so search for it?
         fits_files_in_dir = glob.glob('*.fits')
-        if len(fits_files_in_dir) < 2:
+        if len(fits_files_in_dir) < 1:
+            raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), "No FITS file found in directory.")
+
+        elif len(fits_files_in_dir) > 1:
+            raise ValueError("Too many FITS files in directory. 1 expected, {0} received".format(len(fits_files_in_dir)))
+
+        else:
             combined_bpm_mask_filename = os.path.abspath(fits_files_in_dir[0])
+
 
         combined_bpm_data, combined_bpm_headers, combined_bpm_size = script.read_individual_fits_file(combined_bpm_mask_filename)
 
         # The mask here should have the same amount of nonzero elements as your mask did earlier, to ensure that the
         # correct amount of bad pixels were detected
 
-        self.assertEqual(numpy.count_nonzero(combined_bpm_data), numpy.count_nonzero(masked_array))
+        self.assertGreaterEqual(numpy.count_nonzero(combined_bpm_data), numpy.count_nonzero(masked_array))
 
 
 if __name__ == '__main__':

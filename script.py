@@ -396,6 +396,7 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
     including bias, dark, and flats
 
     """
+
     for index, arr in enumerate(arrays_of_bad_pixels):
         logger.info("{0} bad pixels were detected for calibration type #{1}".format(len(arr), index))
         indiv_file_path = os.path.join("debug","{0}_bpm.txt".format(index))
@@ -417,9 +418,11 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
             logger.error(msg + "Review images now, image mask is corrupt")
 
     final_bad_pixel_set = set()
+
     for subarray in arrays_of_bad_pixels:
+        #pdb.set_trace()
         for coords in subarray:
-            final_bad_pixel_set.add(coords)
+            final_bad_pixel_set.add(tuple(coords))
 
     # As a sanity check, print the list of coordinates into a text file for later examination
     final_file_path = 'debug/combined_bpm_list.txt'

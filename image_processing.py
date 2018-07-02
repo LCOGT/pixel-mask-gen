@@ -96,7 +96,7 @@ def darks_processing(image_objects):
 
     masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
 
-    return masked_indices
+    return masked_indices.tolist()
 
 
 def flats_processing(image_objects):
@@ -146,7 +146,7 @@ def flats_processing(image_objects):
 
     masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
 
-    return masked_indices
+    return masked_indices.tolist()
 
 def biases_processing(image_objects, sigma_min=5, sigma_max=5):
     """**Algorithm**
