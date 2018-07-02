@@ -11,18 +11,22 @@ import random
 import collections
 import glob
 import pdb
-import astropy.io
-import fractions
+import astropy.io.fits
 import errno
 
 # Internal imports
 import script
-import image_object
-import image_processing
 import fits_utilities
 
 
 class TestDateParsingAndPrefixes(unittest.TestCase):
+
+    def setUp(self):
+        # Initialize fake directory information dict (to represent an invalid config_file)
+
+        self.directory_info_dict = {'top_directory': '/notapplicable/',
+                               'camera_prefix': 'xx', 'time': 'start',
+                               'bias_prefix': 'b00', 'dark_prefix': 'd00', 'flats_prefix': 'f00'}
 
     def test_empty_image_list_and_bad_prefix_arrays_raises_error(self):
         image_list = []
@@ -30,27 +34,30 @@ class TestDateParsingAndPrefixes(unittest.TestCase):
         with self.assertRaises(ValueError):
             script.extract_data_from_files(image_list, prefixes_array)
 
-    # TODO: Remove code duplication in next two tests
     def test_bad_relative_date_returns_yesterdays_date(self):
+        '''
         directory_info_dict = {'top_directory': '/notapplicable/',
                                'camera_prefix': 'xx', 'time': 'start',
                                'bias_prefix': 'b00', 'dark_prefix': 'd00', 'flats_prefix': 'f00'}
+        '''
 
-        directory_info_dict['date'] = {'exact': False, 'relative': '35th of nevuary'}
+        self.directory_info_dict['date'] = {'exact': False, 'relative': '35th of nevuary'}
 
-        date_string = script.parse_config_file_date(directory_info_dict)
+        date_string = script.parse_config_file_date(self.directory_info_dict)
         yesterdays_date = (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
         self.assertEqual(yesterdays_date, date_string)
 
     def test_bad_exact_date_returns_yesterdays_date(self):
+        '''
         directory_info_dict = {'top_directory': '/notapplicable/',
                                'camera_prefix': 'xx', 'time': 'start',
                                'bias_prefix': 'b00', 'dark_prefix': 'd00', 'flats_prefix': 'f00'}
+        '''
 
-        directory_info_dict['date'] = {'exact': 'baddate', 'relative': '35th of nevuary'}
+        self.directory_info_dict['date'] = {'exact': 'baddate', 'relative': '35th of nevuary'}
 
         yesterdays_date = (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
-        date_string = script.parse_config_file_date(directory_info_dict)
+        date_string = script.parse_config_file_date(self.directory_info_dict)
         self.assertEqual(yesterdays_date, date_string)
 
 
@@ -76,7 +83,6 @@ class TestConfigurationFileIssues(unittest.TestCase):
         # the error message has to say something like 'empty'
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex=re.compile(r'empty')):
             script.main(self.fake_config_filename)
-
 
     def test_invalid_yaml_structure_raises_error(self):
         # Create a yaml file that just contains one blank dictionary
@@ -150,18 +156,16 @@ class TestConfigurationFileIssues(unittest.TestCase):
         fake_image_path = os.path.join(fake_top_level_directory,bad_config_data['directories']['camera_prefix'] + fake_camera_id, date_string)
         subprocess.run(['mkdir', '-p', fake_image_path], check=True) # must use P flag to create nested directory
 
-        with self.assertRaises(ValueError):
+        with self.assertRaisesRegex(expected_exception=ValueError,expected_regex=re.compile(r'empty')):
             script.retrieve_image_directory_information(self.fake_config_filename, '69')
 
         subprocess.run(['rm', '-r', fake_top_level_directory], check=True)
-
 
     def test_invalid_config_file_raises_error(self):
         with self.assertRaises(FileNotFoundError):
             script.retrieve_image_directory_information('nonexistent_file.yml', '69')
 
 
-#@unittest.skip('Testing')
 class TestFullEndtoEnd(unittest.TestCase):
 
     def setUp(self):
@@ -231,7 +235,6 @@ class TestFullEndtoEnd(unittest.TestCase):
             new_hdu = astropy.io.fits.PrimaryHDU(image_data.astype(numpy.uint8))
             new_hdu_list = astropy.io.fits.HDUList([new_hdu])
 
-            #new_hdu_list[0].header.set('OBSTYPE', 'BPM')
             new_hdu_list[0].header.set('EXPTIME', random.uniform(1,10))
             new_hdu_list.writeto(test_image_filename,overwrite=False,output_verify='exception')
             new_hdu_list.close()

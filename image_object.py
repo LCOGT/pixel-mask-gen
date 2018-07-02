@@ -1,26 +1,20 @@
 class ImageObject:
     """
-    A class representing a FITS image object.
-
-    Put more information here
+    A class built for representing a FITS v4 image. Currently only supports single-extension FITS\
+    images.
 
     """
 
     def __init__(self, image_data, image_headers):
-        """
-
-        :param image_data:
-        :param image_headers:
-
-        """
         self.image_data = image_data
         self.image_headers = image_headers
 
 
     def get_image_size(self):
-        """Returns an (x,y) tuple where x represents the number of rows and y represents the number of columns.
+        """
 
-        :return:
+         :return: a 2-element tuple where the first element represents the number of rows\
+        and the second element represents the number of columns.
 
         """
         return self.image_data.shape
@@ -29,7 +23,7 @@ class ImageObject:
         """
 
         :param key: The 'key'/title of the image header you woud like to retrieve. If None, then the entire header\
-        dictionary will be represented
+        dictionary will be returned.
 
         :return: If Key=None, then dictionary object representing the headers of the fits image, or if a key is specified,\
         then the corresponding value for the header key will be returned.
@@ -46,8 +40,9 @@ class ImageObject:
 
     def get_image_data(self):
         """
-        Self explanatory for now
-        :return:
+        :return: the data stored in the first HDU as a numpy.array.
+
+        For more information, see `the Astropy documentation <http://docs.astropy.org/en/stable/io/fits/>`_.
 
         """
         return self.image_data

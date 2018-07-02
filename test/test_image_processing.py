@@ -8,6 +8,7 @@ import image_processing
 import script
 import image_object
 
+
 class TestsImageProcessingUtilities(unittest.TestCase):
 
     def test_sigma_clipping(self):
@@ -36,15 +37,10 @@ class TestsImageProcessingUtilities(unittest.TestCase):
         adjacent_bad_pixels = image_processing.test_adjacent_pixels(sim_bad_pixels_list)
         self.assertGreaterEqual(adjacent_bad_pixels, 1)
 
-
     def test_generate_mask_from_bad_pixels(self):
 
         # Create a random array with bad pixels at the diagonal elements
-
         max_array_size = random.randint(5,15)
-
-
-        #bad_pixel_locations = [(1,1), (2,2), (3,3)]
 
         zero_array = numpy.zeros((max_array_size, max_array_size),dtype=bool)
 
@@ -55,7 +51,6 @@ class TestsImageProcessingUtilities(unittest.TestCase):
         masked_array = script.generate_mask_from_bad_pixels(bad_pixel_locations, max_array_size, max_array_size)
         # masked array should have 3 bad pixels in it
         self.assertEqual(len(bad_pixel_locations), masked_array.sum())
-
 
     def test_center_region_extraction(self):
         """
@@ -79,6 +74,7 @@ class TestsImageProcessingUtilities(unittest.TestCase):
         extracted_array = image_processing.extract_center_fraction_region(test_array, fractions.Fraction(1,4))
 
         self.assertTrue(numpy.array_equal(expected_array, extracted_array))
+
 
 class TestImageProcessingCoreFunctions(unittest.TestCase):
 

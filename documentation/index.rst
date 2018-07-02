@@ -3,29 +3,55 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to pixel-mask-gen's documentation!
+Code documentation
 ==========================================
+Get information about a specific function, module, class, or see the source.
+
+.. contents::
+    :local:
 
 .. toctree::
-   :maxdepth: 5
-   :caption: Contents:
+   :maxdepth: 10
+   :caption: Project information
 
    readme
    changelog
+
+===================
+Main function
+===================
+
+Documentation for the primary functions used to orchestrate the bad pixel masking code.
 
 .. automodule:: script
     :members:
     :show-inheritance:
 
+===============================
+Image processing documentation
+===============================
+
+Documentation for image processing functions.
+
 .. automodule:: image_processing
     :members:
     :show-inheritance:
 
-.. autoclass:: image_object.ImageObject
+==============================
+FITS Utilities documentation
+==============================
+
+.. automodule:: fits_utilities
     :members:
     :show-inheritance:
 
+==================
+Helper classes
+==================
 
+.. autoclass:: image_object.ImageObject
+    :members:
+    :show-inheritance:
 
 
 

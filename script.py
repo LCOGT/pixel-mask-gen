@@ -1,6 +1,5 @@
 # External
 import astropy.io.fits
-import astropy.stats
 import numpy
 import collections
 import os
@@ -11,7 +10,6 @@ import logging
 import sys
 import errno
 import pdb
-
 
 # Internal
 import image_object
@@ -32,24 +30,6 @@ def main(arg1):
     for identifier in range(0, 99):
         camera_id_number = str(identifier).zfill(2)
         try:
-            '''
-            image_list, prefixes_list, full_camera_name = retrieve_image_directory_information(arg1,
-                                                                                               camera_id_number)
-
-            bias_array, dark_array, flat_array, image_header, rows, columns  = extract_data_from_files(image_list,prefixes_list)
-
-            clean_bias_array, clean_dark_array, clean_flat_array = run_sigma_clipping([bias_array, dark_array,
-                                                                                         flat_array], arg1)
-
-            final_bpm_list = combine_bad_pixel_locations([clean_bias_array, clean_dark_array, clean_flat_array])
-
-            final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, rows, columns)
-
-            output_to_FITS(final_bpm_mask, image_header, "{}_bpm.fits".format(full_camera_name))
-
-            logger.info("Exiting main function.")
-            '''
-
             image_list, prefixes_list, full_camera_name = retrieve_image_directory_information(arg1, camera_id_number)
             bias_array,dark_array,flat_array,image_header,rows,columns = extract_data_from_files(image_list, prefixes_list)
 
