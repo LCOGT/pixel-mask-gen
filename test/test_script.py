@@ -15,9 +15,8 @@ import astropy.io.fits
 import errno
 
 # Internal imports
-import script
-import fits_utilities
-
+import src.script
+import src.fits_utilities
 
 class TestDateParsingAndPrefixes(unittest.TestCase):
 
@@ -32,7 +31,7 @@ class TestDateParsingAndPrefixes(unittest.TestCase):
         image_list = []
         prefixes_array = ['', '', '']
         with self.assertRaises(ValueError):
-            script.extract_data_from_files(image_list, prefixes_array)
+            src.script.extract_data_from_files(image_list, prefixes_array)
 
     def test_bad_relative_date_returns_yesterdays_date(self):
         '''
@@ -43,7 +42,7 @@ class TestDateParsingAndPrefixes(unittest.TestCase):
 
         self.directory_info_dict['date'] = {'exact': False, 'relative': '35th of nevuary'}
 
-        date_string = script.parse_config_file_date(self.directory_info_dict)
+        date_string = src.script.parse_config_file_date(self.directory_info_dict)
         yesterdays_date = (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
         self.assertEqual(yesterdays_date, date_string)
 
@@ -57,7 +56,7 @@ class TestDateParsingAndPrefixes(unittest.TestCase):
         self.directory_info_dict['date'] = {'exact': 'baddate', 'relative': '35th of nevuary'}
 
         yesterdays_date = (datetime.datetime.today() - datetime.timedelta(days=1)).strftime('%Y%m%d')
-        date_string = script.parse_config_file_date(self.directory_info_dict)
+        date_string = src.script.parse_config_file_date(self.directory_info_dict)
         self.assertEqual(yesterdays_date, date_string)
 
 
@@ -82,7 +81,7 @@ class TestConfigurationFileIssues(unittest.TestCase):
         # Create a fake empty yml file, then delete it
         # the error message has to say something like 'empty'
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex=re.compile(r'empty')):
-            script.main(self.fake_config_filename)
+            src.script.main(self.fake_config_filename)
 
     def test_invalid_yaml_structure_raises_error(self):
         # Create a yaml file that just contains one blank dictionary
@@ -92,7 +91,7 @@ class TestConfigurationFileIssues(unittest.TestCase):
             yaml_file.close()
         # since this is an error in parsing the yaml file, the error message should say something about this
         with self.assertRaisesRegex(expected_exception=ValueError, expected_regex=re.compile(r'parse')):
-            script.main(self.fake_config_filename)
+            src.script.main(self.fake_config_filename)
 
     def test_invalid_top_level_folder_halts_execution(self):
         # make a valid configuration file but with a bad top_level path
@@ -109,7 +108,7 @@ class TestConfigurationFileIssues(unittest.TestCase):
             testing_yml_file.close()
 
         with self.assertRaises(SystemExit):
-            script.main(self.fake_config_filename)
+            src.script.main(self.fake_config_filename)
 
     def test_invalid_image_folder_raises_exception(self):
         # make a valid configuration file with a real top_level_path thats empty
@@ -130,7 +129,7 @@ class TestConfigurationFileIssues(unittest.TestCase):
 
         with self.assertRaises(FileNotFoundError):
             # the top level directory exists, but the image folder doesnt
-            script.retrieve_image_directory_information(self.fake_config_filename, '69')
+            src.script.retrieve_image_directory_information(self.fake_config_filename, '69')
 
         subprocess.run(['rm', '-r', fake_top_level_directory], check=True)
 
@@ -150,20 +149,20 @@ class TestConfigurationFileIssues(unittest.TestCase):
             testing_yml_file.close()
 
         # This tells you what folder to make
-        date_string = script.parse_config_file_date(bad_config_data['directories'])
+        date_string = src.script.parse_config_file_date(bad_config_data['directories'])
 
         fake_camera_id = '69'
         fake_image_path = os.path.join(fake_top_level_directory,bad_config_data['directories']['camera_prefix'] + fake_camera_id, date_string)
         subprocess.run(['mkdir', '-p', fake_image_path], check=True) # must use P flag to create nested directory
 
         with self.assertRaisesRegex(expected_exception=ValueError,expected_regex=re.compile(r'empty')):
-            script.retrieve_image_directory_information(self.fake_config_filename, '69')
+            src.script.retrieve_image_directory_information(self.fake_config_filename, '69')
 
         subprocess.run(['rm', '-r', fake_top_level_directory], check=True)
 
     def test_invalid_config_file_raises_error(self):
         with self.assertRaises(FileNotFoundError):
-            script.retrieve_image_directory_information('nonexistent_file.yml', '69')
+            src.script.retrieve_image_directory_information('nonexistent_file.yml', '69')
 
 
 class TestFullEndtoEnd(unittest.TestCase):
@@ -183,9 +182,16 @@ class TestFullEndtoEnd(unittest.TestCase):
         TestConfigurationFileIssues.setUp(self)
 
         testing_config_data = self.original_configuration_data
-        self.fake_top_level_directory = os.path.join('test', 'top_level_directory')
+        self.fake_top_level_directory = os.path.join('test', 'fake_top_level_directory')
         testing_config_data['directories']['top_directory'] = self.fake_top_level_directory
         testing_config_data['statistics']['threshold'] = 95
+
+        self.fake_output_directory = os.path.join("test", "output")
+
+        testing_config_data['directories']['output_directory'] = self.fake_output_directory
+
+        subprocess.run(['mkdir', self.fake_output_directory], check=True)
+
         # the prefixes list needs to change too
         new_prefix_list = ['b69', 'd69', 'f69']
         #  its okay to hard code these in because these are the only calibration types that will ever exist
@@ -201,7 +207,7 @@ class TestFullEndtoEnd(unittest.TestCase):
 
         print('Test YAML file initated.')
 
-        date_string = script.parse_config_file_date(testing_config_data['directories'])
+        date_string = src.script.parse_config_file_date(testing_config_data['directories'])
 
         fake_camera_id = '69'
         fake_image_path = os.path.join(self.fake_top_level_directory, testing_config_data['directories']['camera_prefix'] + fake_camera_id, date_string)
@@ -247,12 +253,13 @@ class TestFullEndtoEnd(unittest.TestCase):
         # recursively delete the fake testing top directory
         # Delete the debug directory?
         subprocess.run(['rm', self.fake_config_filename], check=True)
-        subprocess.run(['rm', '-rf', self.fake_top_level_directory])
+        subprocess.run(['rm', '-rf', self.fake_top_level_directory], check=True)
+        subprocess.run(['rm', '-rf', self.fake_output_directory], check=True)
 
 
     def test_full_integration_test(self):
         # Now that all the sample images are created, call the main script?
-        script.main(self.fake_config_filename)
+        src.script.main(self.fake_config_filename)
         # find if any bad pixel appeared with a frequency that exceeds the threshold amount (for each of the three thirds)
 
         # Even though the threshold value is configurable, we hardcoded it to 95%
@@ -266,7 +273,10 @@ class TestFullEndtoEnd(unittest.TestCase):
 
         # after the main script has run, read out the bpm file produced by that mask and test it against the saved mask earlier, they should match?
         # the final bpm is a .fits file in the main directory, so search for it?
-        fits_files_in_dir = glob.glob('*.fits')
+        #fits_files_in_dir = glob.glob('*.fits')
+        fits_files_in_dir = os.listdir(self.fake_output_directory)
+
+        pdb.set_trace()
         if len(fits_files_in_dir) < 1:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), "No FITS file found in directory.")
 
@@ -274,10 +284,10 @@ class TestFullEndtoEnd(unittest.TestCase):
             raise ValueError("Too many FITS files in directory. 1 expected, {0} received".format(len(fits_files_in_dir)))
 
         else:
-            combined_bpm_mask_filename = os.path.abspath(fits_files_in_dir[0])
+            combined_bpm_mask_filename = os.path.join(self.fake_output_directory, fits_files_in_dir[0])
 
 
-        combined_bpm_data, combined_bpm_headers, combined_bpm_size = fits_utilities.read_individual_fits_file(combined_bpm_mask_filename)
+        combined_bpm_data, combined_bpm_headers, combined_bpm_size = src.fits_utilities.read_individual_fits_file(combined_bpm_mask_filename)
 
         # The mask here should have the same amount of nonzero elements as your mask did earlier, to ensure that the
         # correct amount of bad pixels were detected

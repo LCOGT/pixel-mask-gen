@@ -4,9 +4,9 @@ import fractions
 import unittest
 import sys
 
-import image_processing
-import script
-import image_object
+import src.image_processing
+import src.script
+import src.image_object
 
 
 class TestsImageProcessingUtilities(unittest.TestCase):
@@ -14,7 +14,7 @@ class TestsImageProcessingUtilities(unittest.TestCase):
     def test_sigma_clipping(self):
         random_array = numpy.random.randint(5, size=(5,5))
         med, std = numpy.median(random_array), numpy.std(random_array)
-        filtered_array, masked_indices, _ = image_processing.sigma_clip_individual(random_array, \
+        filtered_array, masked_indices, _ = src.image_processing.sigma_clip_individual(random_array, \
                                                                                    sigma_hi=1, \
                                                                                    sigma_low = 1)
 
@@ -34,7 +34,7 @@ class TestsImageProcessingUtilities(unittest.TestCase):
         sim_bad_pixels_list.append((existing_x_coord +1, existing_y_coord))
 
         # once neighboring bad pixel is added
-        adjacent_bad_pixels = image_processing.test_adjacent_pixels(sim_bad_pixels_list)
+        adjacent_bad_pixels = src.image_processing.test_adjacent_pixels(sim_bad_pixels_list)
         self.assertGreaterEqual(adjacent_bad_pixels, 1)
 
     def test_generate_mask_from_bad_pixels(self):
@@ -48,7 +48,7 @@ class TestsImageProcessingUtilities(unittest.TestCase):
 
         for coords in bad_pixel_locations: zero_array[coords] = True
 
-        masked_array = script.generate_mask_from_bad_pixels(bad_pixel_locations, max_array_size, max_array_size)
+        masked_array = src.script.generate_mask_from_bad_pixels(bad_pixel_locations, max_array_size, max_array_size)
         # masked array should have 3 bad pixels in it
         self.assertEqual(len(bad_pixel_locations), masked_array.sum())
 
@@ -71,7 +71,7 @@ class TestsImageProcessingUtilities(unittest.TestCase):
         expected_array = numpy.array([[6,7],
                                      [10,11]])
 
-        extracted_array = image_processing.extract_center_fraction_region(test_array, fractions.Fraction(1,4))
+        extracted_array = src.image_processing.extract_center_fraction_region(test_array, fractions.Fraction(1,4))
 
         self.assertTrue(numpy.array_equal(expected_array, extracted_array))
 
@@ -111,23 +111,23 @@ class TestImageProcessingCoreFunctions(unittest.TestCase):
                 self.expected_bad_pixel_count += 1
 
 
-            self.test_images_list.append(image_object.ImageObject(random_array, image_header))
+            self.test_images_list.append(src.image_object.ImageObject(random_array, image_header))
 
         if len(self.test_images_list) != num_of_test_images:
             raise unittest.SkipTest("Test skipped, unable to create to testing images.")
 
     def test_bias_processing(self):
-        masked_indices = image_processing.biases_processing(self.test_images_list, sigma_min=3, sigma_max=3)
+        masked_indices = src.image_processing.biases_processing(self.test_images_list, sigma_min=3, sigma_max=3)
 
         self.assertGreaterEqual(len(masked_indices), self.expected_bad_pixel_count)
 
     def test_flat_processing(self):
-        masked_indices = image_processing.flats_processing(self.test_images_list)
+        masked_indices = src.image_processing.flats_processing(self.test_images_list)
 
         self.assertGreaterEqual(len(masked_indices), self.expected_bad_pixel_count)
 
     def test_dark_processing(self):
-        masked_indexes = image_processing.darks_processing(self.test_images_list)
+        masked_indexes = src.image_processing.darks_processing(self.test_images_list)
 
         self.assertGreaterEqual(len(masked_indexes), self.expected_bad_pixel_count)
 
