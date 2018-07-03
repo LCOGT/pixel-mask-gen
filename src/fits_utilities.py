@@ -42,12 +42,15 @@ def output_to_FITS(image_data, header_dict, filename, debug=True):
 
         with open(str(final_bpm_txtfile_path), 'w') as final_bpm_txtfile:
             final_bpm_txtfile.write(''.join(map(str, [coords for coords in image_data])))
-            final_bpm_txtfile.write('==========')
-            final_bpm_txtfile.write('HEADERS\n')
-            header_string = ''
-            for key, value in header_dict.items():
-                final_bpm_txtfile.write("key: {0}, value: {1}\n".format(key, value))
-            final_bpm_txtfile.write(header_string)
+
+            if not header_dict:
+                final_bpm_txtfile.write('==========')
+                final_bpm_txtfile.write('HEADERS\n')
+                header_string = ''
+                for key, value in header_dict.items():
+                    final_bpm_txtfile.write("key: {0}, value: {1}\n".format(key, value))
+                final_bpm_txtfile.write(header_string)
+
             final_bpm_txtfile.close()
 
     final_filename = filename + "-" + todays_date + "_bpm.fits"

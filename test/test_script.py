@@ -13,6 +13,8 @@ import glob
 import pdb
 import astropy.io.fits
 import errno
+import pstats
+import cProfile
 
 # Internal imports
 import src.script
@@ -21,7 +23,11 @@ import src.fits_utilities
 class TestDateParsingAndPrefixes(unittest.TestCase):
 
     def setUp(self):
+
+
+
         # Initialize fake directory information dict (to represent an invalid config_file)
+
 
         self.directory_info_dict = {'top_directory': '/notapplicable/',
                                'camera_prefix': 'xx', 'time': 'start',
@@ -178,6 +184,10 @@ class TestFullEndtoEnd(unittest.TestCase):
 
          The actual test will just consist of testing that the pixels you set to INT_MAX earlier were actually removed
         """
+
+        self.prof = cProfile.Profile()
+        self.prof.enable()
+
         # Set up an empty configuration yaml file in the test directory
         TestConfigurationFileIssues.setUp(self)
 
@@ -255,6 +265,11 @@ class TestFullEndtoEnd(unittest.TestCase):
         subprocess.run(['rm', self.fake_config_filename], check=True)
         subprocess.run(['rm', '-rf', self.fake_top_level_directory], check=True)
         subprocess.run(['rm', '-rf', self.fake_output_directory], check=True)
+
+        pr = pstats.Stats(self.prof)
+        pr.strip_dirs()
+        pr.sort_stats('cumtime')
+        pr.print_stats()
 
 
     def test_full_integration_test(self):
