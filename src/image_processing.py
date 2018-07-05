@@ -53,7 +53,7 @@ def darks_processing(image_objects):
 
     Take the average of each image on a per-pixel basis, to get :math:`\bar{p}_{i,j}`
 
-    Set some percentage threshold :math:`t` and remove all pixels outside the range :math:`\bar{p}_{i,j}  \pm t`
+    Set a standard deviation threshold :math:`t` and remove all pixels outside the range :math:`\bar{p}_{i,j}  \pm t`
 
     :param image_objects:
     :return:  A list of tuples were each tuple contains a pixel location that was flagged from the darks images.
@@ -99,8 +99,8 @@ def flats_processing(image_objects):
     Store the data for each corresponding pixel in an array :math:`A_{i,j}`, and compute the standard deviation of the array,\
     for each value of :math:`i` and :math:`j`, and store this as :math:`\sigma_{A_{i,j}}`
 
-    Take the median absolute deviation of all :math:`\sigma_{A_{i,j}}`, and flag any pixel location whose value is not within 3 standard \
-    deviations of the median.
+    Take the median absolute deviation of all :math:`\sigma_{A_{i,j}}`, and flag any pixel location whose value is not within\
+    :math:`s` standard deviations of the median.
 
 
     :param image_objects: an array of image ojbects

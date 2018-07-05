@@ -38,7 +38,7 @@ def output_to_FITS(image_data, header_dict, filename, debug=False):
         logging.info("Writing debugging information to /debug/")
         # For debugging purposes, write the mask and the header file into a text file
         #final_bpm_txtfile_path = os.path.join('debug', todays_date + "-" + filename + ".txt")
-        final_bpm_txtfile_path = os.path.join("debug", todays_date + "_final-bmp.txt")
+        final_bpm_txtfile_path = os.path.join("debug", todays_date + "_final-bpm.txt")
 
         with open(str(final_bpm_txtfile_path), 'w') as final_bpm_txtfile:
             final_bpm_txtfile.write(''.join(map(str, [coords for coords in image_data])))

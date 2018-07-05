@@ -23,7 +23,7 @@ Main function
 
 Documentation for the primary functions used to orchestrate the bad pixel masking code.
 
-.. automodule:: script
+.. automodule:: src.script
     :members:
     :show-inheritance:
 
@@ -33,7 +33,7 @@ Image processing documentation
 
 Documentation for image processing functions.
 
-.. automodule:: image_processing
+.. automodule:: src.image_processing
     :members:
     :show-inheritance:
 
@@ -41,7 +41,7 @@ Documentation for image processing functions.
 FITS Utilities documentation
 ==============================
 
-.. automodule:: fits_utilities
+.. automodule:: src.fits_utilities
     :members:
     :show-inheritance:
 
@@ -49,10 +49,17 @@ FITS Utilities documentation
 Helper classes
 ==================
 
-.. autoclass:: image_object.ImageObject
+.. autoclass:: src.image_object.ImageObject
     :members:
     :show-inheritance:
 
+====================
+Verification script
+====================
+
+.. automodule:: test.verification
+    :members:
+    :show-inheritance:
 
 
 Indices and tables
