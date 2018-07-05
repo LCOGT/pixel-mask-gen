@@ -291,7 +291,7 @@ class TestFullEndtoEnd(unittest.TestCase):
         #fits_files_in_dir = glob.glob('*.fits')
         fits_files_in_dir = os.listdir(self.fake_output_directory)
 
-        pdb.set_trace()
+        #pdb.set_trace()
         if len(fits_files_in_dir) < 1:
             raise FileNotFoundError(errno.ENOENT, os.strerror(errno.ENOENT), "No FITS file found in directory.")
 

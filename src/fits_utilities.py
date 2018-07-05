@@ -8,7 +8,7 @@ import logging
 import pdb
 
 
-def output_to_FITS(image_data, header_dict, filename, debug=True):
+def output_to_FITS(image_data, header_dict, filename, debug=False):
     """Generates a FITS v4 file from image data
 
     :param image_data: A numpy array, will be used for the primary header.

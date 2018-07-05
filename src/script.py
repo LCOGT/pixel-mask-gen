@@ -344,7 +344,7 @@ def generate_mask_from_bad_pixels(bad_pixel_location_array, x_dimension, y_dimen
 
     return masked_array
 
-def combine_bad_pixel_locations(arrays_of_bad_pixels):
+def combine_bad_pixel_locations(arrays_of_bad_pixels, debug=False):
     """Given an array of 3 arrays, (where each inner array contains a list of pixels that are known bad), take the set union
 
     :param arrays_of_bad_pixels: 3 arrays that contain a list of pixels that were set as known-bad during the filtering \
@@ -357,14 +357,18 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
 
     for index, arr in enumerate(arrays_of_bad_pixels):
         logger.info("{0} bad pixels were detected for calibration type #{1}".format(len(arr), index))
-        indiv_file_path = os.path.join("debug","{0}_bpm.txt".format(index))
-        logger.info('Writing bad pixel to debugging directory')
-        with open(indiv_file_path, 'w') as output:
-            output.write(''.join(map(str, arr)))
-            output.close()
 
-        # If the array contains bad pixels that are adjacent, flag it
-        neighboring_bad_pixels = image_processing.test_adjacent_pixels(arr)
+        if debug == True:
+            indiv_file_path = os.path.join("debug","{0}_bpm.txt".format(index))
+            logger.info('Writing bad pixel to debugging directory')
+            with open(indiv_file_path, 'w') as output:
+                output.write(''.join(map(str, arr)))
+                output.close()
+
+        # If the array contains bad pixels that are adjacent, flag it.
+        # Convert the list of bad pixels to a set first to remove duplicates, this cuts down on the amount
+        # of time the test_adjacent_pixels algorithm will need
+        neighboring_bad_pixels = image_processing.test_adjacent_pixels(set(arr))
         msg = "{0} neighboring bad pixels were found.".format(neighboring_bad_pixels)
         if neighboring_bad_pixels < 1:
             logger.info(msg)
@@ -383,10 +387,12 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels):
             final_bad_pixel_set.add(tuple(coords))
 
     # As a sanity check, print the list of coordinates into a text file for later examination
-    final_file_path = 'debug/combined_bpm_list.txt'
-    with open(final_file_path, 'w') as output:
-        output.write(''.join(map(str, final_bad_pixel_set)))
-        output.close()
+
+    if debug == True:
+        final_file_path = 'debug/combined_bpm_list.txt'
+        with open(final_file_path, 'w') as output:
+            output.write(''.join(map(str, final_bad_pixel_set)))
+            output.close()
 
     return final_bad_pixel_set
 
