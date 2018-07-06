@@ -75,12 +75,15 @@ def darks_processing(image_objects):
     # compute the per-pixel mean, this should be in a 2D array
     per_pixel_mean = numpy.mean(total_image_cube, axis=2)
 
+    per_pixel_stddev = numpy.std(per_pixel_mean)
+
     # (scalar) median from every pixel
     pixels_median = numpy.median(per_pixel_mean)
 
-    # any pixel that is outside of the range (median - 0.25 * median, median + 0.25 * median) gets masked
-    scaling_factor = 0.25
-    range_start, range_end = pixels_median - 0.25 * pixels_median, pixels_median + 0.25 * pixels_median
+    # any pixel that is outside of the range gets masked
+    sigma_threshold = 5
+    range_start, range_end = pixels_median - sigma_threshold * per_pixel_stddev, \
+                             pixels_median - sigma_threshold * per_pixel_stddev
 
     filtered_array = numpy.ma.masked_outside(per_pixel_mean, range_start, range_end)
 
@@ -129,8 +132,9 @@ def flats_processing(image_objects):
 
     mad = astropy.stats.median_absolute_deviation(std_deviations_array)
 
-    # once you have the MAD, mask any values outside the range of 2*MAD?
-    range_start, range_end = mad - 2*mad, mad + 2*mad
+    # once you have the MAD, mask any values outside the range of the ssigma threshold
+    sigma_threshold = 6 * (1.48 * mad)
+    range_start, range_end = mad - sigma_threshold, mad + sigma_threshold
 
     filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start, range_end)
 

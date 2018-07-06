@@ -83,7 +83,7 @@ class TestImageProcessingCoreFunctions(unittest.TestCase):
         num_of_test_images = 10
 
         # set a maximum image value for a pixel, 10 is a good number
-        max_pixel_value = num_of_test_images
+        max_pixel_value = 100
 
         # to make the fractioning easy, use a factor of 4
         test_image_size = 16, 16
@@ -117,13 +117,14 @@ class TestImageProcessingCoreFunctions(unittest.TestCase):
             raise unittest.SkipTest("Test skipped, unable to create to testing images.")
 
     def test_bias_processing(self):
-        masked_indices = src.image_processing.biases_processing(self.test_images_list, sigma_min=3, sigma_max=3)
+        masked_indices = src.image_processing.biases_processing(self.test_images_list, sigma_min=5, sigma_max=5)
 
         self.assertGreaterEqual(len(masked_indices), self.expected_bad_pixel_count)
 
     def test_flat_processing(self):
         masked_indices = src.image_processing.flats_processing(self.test_images_list)
-
+        # flats processing wont contain duplicates in its bad pixel list, whereas our sample images
+        # have duplicated pixels
         self.assertGreaterEqual(len(masked_indices), self.expected_bad_pixel_count)
 
     def test_dark_processing(self):
