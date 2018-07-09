@@ -1,12 +1,14 @@
 """
-This script is used to parse the bad pixel mask from BANZAI-processed images that were\
-downloaded from the LCO archive at: https://lco.global/observatory/data/archive
+VERIFICATION SCRIPT
+This script is used to parse the bad pixel mask from BANZAI-processed images that were
+downloaded from the LCO archive at: https://lco.global/observatory/data/archive/
 
-The purpose of this script is to be able to test your bad pixel mask against a known-good bad\
+The purpose of this script is to be able to test your bad pixel mask against a known-good bad
 pixel mask during the development process.
 
-After Banzai processes images, it stores the bad pixel mask for them in the 2nd extension of the\
-FITS header data unit.
+After Banzai processes images, it stores the bad pixel mask for them in the 2nd extension of the
+FITS header data unit. This script looks for images in the current directory, reads them, and
+makes sure that all the bad pixel masks are equal.
 """
 
 import astropy.io.fits
@@ -15,16 +17,20 @@ import os
 import numpy
 
 
+
 def read_bpms_from_files(directory):
     bpms = []
     print('Searching for FITS files in directory.')
-    for index, filename in enumerate(os.listdir(".")):
+    for index, filename in enumerate(os.listdir(directory)):
         if filename.endswith('.fits'):
             print("index:{0}, filename:{1}".format(index, filename))
-            image_file = astropy.io.fits.open(filename)
+            image_file = astropy.io.fits.open(os.path.abspath(os.path.join(directory, filename)))
             # BANZAI stores the BPM in the 2nd extension of the image
             # https://lco.global/documentation/archive-documentation/
             bpm_data = image_file[1].data
+            num_of_bad_pixels = numpy.count_nonzero(bpm_data)
+            pct_bad_pixels = (num_of_bad_pixels / bpm_data.size) * 100
+            print("{0} ({1} %) bad pixels detected in example mask:".format(num_of_bad_pixels, pct_bad_pixels))
 
             bpms.append(bpm_data)
 
@@ -40,19 +46,14 @@ def verify_bpms_are_equal(bpms):
 
     else:
         # Check if all possible pairs of numpy arrays are equal
-        all([numpy.array_equal(bpms[i], bpms[j]) for i in range(len(bpms)) for j in range(i+1, len(bpms))])
+        return all([numpy.array_equal(bpms[i], bpms[j]) for i in range(len(bpms)) for j in range(i+1, len(bpms))])
+
 
 if __name__ == '__main__':
     # The directory where the BANZAI-reduced images are stored
-    DEFAULT_DIRECTORY = 'sample_images/processed/'
-    bpms_from_directory = read_bpms_from_files()
+    DEFAULT_DIRECTORY = 'example_images/'
+    bpms_from_directory = read_bpms_from_files(DEFAULT_DIRECTORY)
     if verify_bpms_are_equal(bpms_from_directory):
-        '''
-        print("Writing bpm to file.")
-        with open('original_bpm.txt', 'w') as file_handler:
-            file_handler.write(''.join(map(str, [coords for coords in bpms_from_directory[0]])))
-    file_handler.close()
-        '''
         print('Converting BPM to FITS file.')
 
         new_hdu = astropy.io.fits.PrimaryHDU(bpms_from_directory[0].astype(numpy.uint8))
@@ -66,6 +67,8 @@ if __name__ == '__main__':
 
     else:
         print('Not all FITS files had the same bad pixel in the 2nd extension mask.')
+
+
 
 
 

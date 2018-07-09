@@ -16,9 +16,9 @@ def sigma_clip_individual(image_array, sigma_hi, sigma_low):
 
     """
 
-    mfiltered_array = astropy.stats.sigma_clip(data=image_array,\
-                                    sigma_lower=sigma_low,\
-                                    sigma_upper=sigma_hi)
+    mfiltered_array = astropy.stats.sigma_clip(data=image_array,
+                                        sigma_lower=sigma_low,
+                                        sigma_upper=sigma_hi)
 
     masked_indices = numpy.transpose(numpy.ma.getmask(mfiltered_array).nonzero())
 
@@ -46,7 +46,49 @@ def test_adjacent_pixels(bad_pixel_list):
 
     return max_neighboring_bad_pixels
 
-def darks_processing(image_objects):
+
+def biases_processing(image_objects, sigma_min=7, sigma_max=7):
+    """**Algorithm**
+
+    Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
+
+    Subtract every pixel in the median by :math:`m`.\
+
+    Then perform the sigma clipping algorithm on the resulting pixels, and flag any that do not pass.
+
+    :param image_objects: A list of image objects
+    :param sigma_min: the lower sigma threshold to use
+    :param sigma_max: the upper sigma threshold to use
+    :return: A list of tuples where each tuple contains a pixel location that was flagged from the bias images.
+    :rtype: list
+    """
+
+    logging.info("Beginning processing on {0} bias images".format(len(image_objects)))
+
+    corrected_images_list = []
+
+    images_datas = [image.get_image_data() for image in image_objects]
+    masked_indices_list = []
+
+    for image_data in images_datas:
+        center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1, 4))
+        center_quarter_median = numpy.median(center_quarter)
+
+        corrected_image = numpy.subtract(image_data, center_quarter_median)
+
+        corrected_images_list.append(corrected_image)
+
+        sclipped_image = astropy.stats.sigma_clip(data=corrected_image, sigma_lower=sigma_min, sigma_upper=sigma_max)
+
+        masked_indices = numpy.transpose(numpy.ma.getmask(sclipped_image).nonzero())
+
+        masked_indices_list.append(masked_indices)
+
+    # Return a flattened list containing all coordinates that failed the sigma clipping
+    return [tuple(coords) for sublist in masked_indices_list for coords in sublist]
+
+
+def darks_processing(image_objects, sigma_threshold=7):
     r"""**Algorithm**
 
     Divide all dark images :math:`d_i` by their respective exposure time (:math:`e_i`) to get :math:`\bar{d_i}`
@@ -81,18 +123,19 @@ def darks_processing(image_objects):
     pixels_median = numpy.median(per_pixel_mean)
 
     # any pixel that is outside of the range gets masked
-    sigma_threshold = 5
-    range_start, range_end = pixels_median - sigma_threshold * per_pixel_stddev, \
-                             pixels_median - sigma_threshold * per_pixel_stddev
+    range_start, range_end = pixels_median - (sigma_threshold * per_pixel_stddev), \
+                             pixels_median + (sigma_threshold * per_pixel_stddev)
 
     filtered_array = numpy.ma.masked_outside(per_pixel_mean, range_start, range_end)
 
     masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
 
+
+
     return [tuple(coordinates) for coordinates in masked_indices.tolist()]
 
 
-def flats_processing(image_objects):
+def flats_processing(image_objects, sigma_threshold=7):
     """**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -105,6 +148,12 @@ def flats_processing(image_objects):
     Take the median absolute deviation of all :math:`\sigma_{A_{i,j}}`, and flag any pixel location whose value is not within\
     :math:`s` standard deviations of the median.
 
+    Recall that
+
+    .. math::
+    \sigma = k \cdot MAD
+
+    Where for a normal distribution, :math:`k\approx 1.4826`.
 
     :param image_objects: an array of image ojbects
     :return: A list of tuples where each tuple contains a pixel location that was flagged from the flats images.
@@ -117,7 +166,7 @@ def flats_processing(image_objects):
     corrected_images_list = []
 
     for image_data in images_datas:
-        center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1,4))
+        center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1, 4))
         center_quarter_median = numpy.median(center_quarter)
         corrected_image = numpy.divide(image_data, center_quarter_median)
         corrected_images_list.append(corrected_image)
@@ -133,54 +182,16 @@ def flats_processing(image_objects):
     mad = astropy.stats.median_absolute_deviation(std_deviations_array)
 
     # once you have the MAD, mask any values outside the range of the ssigma threshold
-    sigma_threshold = 6 * (1.48 * mad)
-    range_start, range_end = mad - sigma_threshold, mad + sigma_threshold
+    k = 1.4826
+    range_start, range_end = mad - ((k * mad ) * sigma_threshold),\
+                             mad + ((k * mad) * sigma_threshold)
 
     filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start, range_end)
 
     masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
 
+
     return [tuple(coordinates) for coordinates in masked_indices.tolist()]
-
-def biases_processing(image_objects, sigma_min=5, sigma_max=5):
-    """**Algorithm**
-
-    Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
-
-    Subtract every pixel in the median by :math:`m`.\
-
-    Then perform the sigma clipping algorithm on the resulting pixels, and flag any that do not pass.
-
-    :param image_objects: A list of image objects
-    :param sigma_min: the lower sigma threshold to use
-    :param sigma_max: the upper sigma threshold to use
-    :return: A list of tuples where each tuple contains a pixel location that was flagged from the bias images.
-    :rtype: list
-    """
-
-    logging.info("Beginning processing on {0} bias images".format(len(image_objects)))
-
-    corrected_images_list = []
-
-    images_datas = [image.get_image_data() for image in image_objects]
-    masked_indices_list = []
-
-    for image_data in images_datas:
-        center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1,4))
-        center_quarter_median = numpy.median(center_quarter)
-
-        corrected_image = numpy.subtract(image_data, center_quarter_median)
-
-        corrected_images_list.append(corrected_image)
-
-        sclipped_image = astropy.stats.sigma_clip(data=corrected_image,sigma_lower=sigma_min, sigma_upper=sigma_max)
-
-        masked_indices = numpy.transpose(numpy.ma.getmask(sclipped_image).nonzero())
-
-        masked_indices_list.append(masked_indices)
-
-    # Return a flattened list containing all coordinates that failed the sigma clipping
-    return [tuple(coords) for sublist in masked_indices_list for coords in sublist]
 
 
 def extract_center_fraction_region(original_image_data, fraction):

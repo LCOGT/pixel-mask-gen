@@ -55,21 +55,24 @@ def output_to_FITS(image_data, header_dict, filename, debug=False):
 
     final_filename = filename + "-" + todays_date + "_bpm.fits"
 
+
     logging.info("Preparing to write data to file: {0}".format(final_filename))
     new_hdu_list.writeto(final_filename , overwrite=True, output_verify='exception',checksum=True)
 
     new_hdu_list.close()
 
     # after closing the file, ensure that the file it wrote to was not empty.
-    if os.stat(filename).st_size < 10:
+    if os.stat(os.path.abspath(final_filename)).st_size < 10:
         raise ValueError('It appears the FITS file given from the data could not be written to.')
+
+    else:
+        logging.info("Finished writing file to {0}".format(filename))
 
 
 def read_individual_fits_file(filename):
     """
 
     :param filename: The absolute filename of a FITS image
-
 
     :returns image_data: A numpy array representing the data in the image
     :returns image_header_info: A dictionary object representing the header information for the last image. The \

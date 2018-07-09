@@ -16,6 +16,7 @@ import src.image_processing as image_processing
 import src.image_object as image_object
 import src.fits_utilities as fits_utilities
 
+import test.verification
 
 def main(arg1):
     """This function will execute when the module is run in main context.
@@ -27,33 +28,96 @@ def main(arg1):
 
     :return: None.
     """
+
     empty_folder_count = 0
-    for identifier in range(0, 99):
-        camera_id_number = str(identifier).zfill(2)
-        try:
-            image_list, prefixes_list, full_camera_name, output_dir = retrieve_image_directory_information(arg1, camera_id_number)
-            bias_array,dark_array,flat_array,image_header,rows,columns = extract_data_from_files(image_list, prefixes_list)
+    camera_id_number = '26'
 
-            bias_bad_pixels = image_processing.biases_processing(bias_array)
+    image_list, prefixes_list, full_camera_name, output_dir = retrieve_image_directory_information(arg1, camera_id_number)
+    bias_array,dark_array,flat_array,image_header,rows,columns = extract_data_from_files(image_list, prefixes_list)
 
-            dark_bad_pixels = image_processing.darks_processing(dark_array)
+    bias_bad_pixels = image_processing.biases_processing(bias_array)
 
-            flat_bad_pixels = image_processing.flats_processing(flat_array)
+    dark_bad_pixels = image_processing.darks_processing(dark_array)
 
-            final_bpm_list = combine_bad_pixel_locations([bias_bad_pixels, dark_bad_pixels, flat_bad_pixels])
+    flat_bad_pixels = image_processing.flats_processing(flat_array)
 
-            final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, rows, columns)
+    final_bpm_list = combine_bad_pixel_locations([bias_bad_pixels, dark_bad_pixels, flat_bad_pixels])
 
-            output_filename = os.path.join(output_dir, "{}".format(full_camera_name))
+    final_bpm_mask = generate_mask_from_bad_pixels(final_bpm_list, rows, columns)
 
-            fits_utilities.output_to_FITS(final_bpm_mask, {}, output_filename, debug=True)
+    output_filename = os.path.join(output_dir, "{}".format(full_camera_name))
 
-            logger.info('Exiting main function.')
+    fits_utilities.output_to_FITS(final_bpm_mask, {}, output_filename, debug=False)
 
-        except FileNotFoundError:
-            logger.info("Unable to find any folders that contained the desired camera prefix and identifier ({0})".format(camera_id_number))
-            empty_folder_count += 1
-            continue
+    logger.info("Finished creating bad pixel mask. Now beginning verification.")
+
+    # hardcoded temporarily, should read config.yml to get settings
+
+    verification_directory = os.path.join('test', 'example_images')
+    sample_bpms = test.verification.read_bpms_from_files(verification_directory)
+
+    # compare the known-good bad pixel mask against the computed bad pixel mask. In practice, you should run the
+    # verify_all_bpms_are_equal function
+
+
+    #since arrays are two different sizes, take the minimum of the two dimensions of each, and then do the differences
+    #based on that?
+
+    difference_shape = min(sample_bpms[0].shape, final_bpm_mask.shape)
+
+    # once you have the sample mask, find what coordinates are in it, and compare it to the coordinates in the computed
+    # mask?
+
+    #sample_bpm_coordinates = numpy.transpose(numpy.ma.getmask(sample_bpms[0]).nonzero()).tolist()
+    sample_bpm_coordinates = numpy.transpose(numpy.where(sample_bpms[0])).tolist()
+    sample_bpm_coordinates = [tuple(coords) for coords in sample_bpm_coordinates]
+
+    #final_bpm_coordinates = numpy.transpose(numpy.ma.getmask(final_bpm_mask)).nonzero().tolist()
+
+
+    # compute the intersection of the two arrays, and use that to create a ternary image?
+    # pixel value is 1 if it appears in the computed mask only
+    # 2 if it appears in example mask only
+    # 3 if it appears in both
+
+    list_intersection = list(set(sample_bpm_coordinates) & set(final_bpm_list))
+
+    print("The shape of the actual bad pixel mask is {0}, whereas the computed bad pixel mask is: {1}".format(sample_bpms[0].shape,\
+                                                                                                              final_bpm_mask.shape))
+
+    difference_array = numpy.zeros(shape = difference_shape, dtype=numpy.uint8)
+    for coord in final_bpm_list:
+        if (coord[0] < difference_shape[0]) and (coord[1] < difference_shape[1]):
+            difference_array[coord] = 1
+
+    for coord in sample_bpm_coordinates:
+        # if the same coordinate was already set earlier, then it must appear in both lists, so set it to 3
+        if difference_array[coord] == 1:
+
+            difference_array[coord] = 3
+        # if it wasnt set yet, then it didnt appear in the computed list, so set it equal to 2
+        elif difference_array[coord] == 0:
+            difference_array[coord] = 2
+
+    # write the resulting difference array to a FITS file
+
+    pdb.set_trace()
+
+    new_hdu = astropy.io.fits.PrimaryHDU(difference_array.astype(numpy.uint8))
+    new_hdu_list = astropy.io.fits.HDUList([new_hdu])
+
+    print("The intersection of the two lists is:", list_intersection)
+
+    new_hdu_list.writeto(os.path.join('test', 'difference_array.fits'), overwrite=True, output_verify='exception')
+    new_hdu_list.close()
+
+
+
+
+    logger.info('Exiting main function.')
+
+    #logger.info("Unable to find any folders that contained the desired camera prefix and identifier ({0})".format(camera_id_number))
+    #empty_folder_count += 1
 
     if empty_folder_count == 99:
         logger.warning("No folders matching ANY of the camera prefix and identifiers were found. Check this folder.")
