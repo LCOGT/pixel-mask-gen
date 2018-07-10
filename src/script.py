@@ -54,6 +54,8 @@ def main(arg1):
     # hardcoded temporarily, should read config.yml to get settings
 
     verification_directory = os.path.join('test', 'example_images')
+    ''' # the commented section below assumes you're getting the original BPM from reading the 2nd extension in a 
+    # BANZAI processed image
     sample_bpms = test.verification.read_bpms_from_files(verification_directory)
 
     # compare the known-good bad pixel mask against the computed bad pixel mask. In practice, you should run the
@@ -84,35 +86,92 @@ def main(arg1):
 
     print("The shape of the actual bad pixel mask is {0}, whereas the computed bad pixel mask is: {1}".format(sample_bpms[0].shape,\
                                                                                                               final_bpm_mask.shape))
+    '''
 
-    difference_array = numpy.zeros(shape = difference_shape, dtype=numpy.uint8)
+    for index, filename in enumerate(os.listdir(verification_directory)):
+        if filename.startswith('bpm'):
+            image_file = astropy.io.fits.open(os.path.abspath(os.path.join(verification_directory, filename)))
+            bpm_data = image_file[0].data
+            image_header = image_file[0].header
+            num_of_bad_pixels = numpy.count_nonzero(bpm_data)
+            pct_bad_pixels = (num_of_bad_pixels / bpm_data.size) * 100
+            print("{0} ({1} %) bad pixels detected in example mask [dim: {2}]".format(num_of_bad_pixels, pct_bad_pixels, bpm_data.shape))
+
+        else:
+            continue
+
+
+
+    # TRIMSEC is reported as [18:3071, 5:2046] so use that range to compare the two BPMS
+    sample_bpm_coordinates = (numpy.transpose(numpy.where(bpm_data))).tolist()
+    #sample_bpm_coordinates = [tuple(coords) for coords in sample_bpm_coordinates]
+
+    sample_bpm_coordinates = [tuple(coords) for coords in sample_bpm_coordinates if coords[0] in range(4, 2046) and coords[1] in range(17, 3071)]
+
+    final_bpm_coordinates = [tuple(coords) for coords in final_bpm_list if coords[0] in range(4, 2046) and coords[1] in range(17, 3071)]
+
+    difference_array = numpy.zeros(shape = bpm_data.shape, dtype=numpy.uint8)
+    bpm_count_actual, bpm_count_expected = 0, 0
+    '''
     for coord in final_bpm_list:
-        if (coord[0] < difference_shape[0]) and (coord[1] < difference_shape[1]):
+        #if (coord[0] < bpm_data.shape[0]) and (coord[1] < bpm_data.shape[1]):
+        if (coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071)):
             difference_array[coord] = 1
 
     for coord in sample_bpm_coordinates:
         # if the same coordinate was already set earlier, then it must appear in both lists, so set it to 3
-        if difference_array[coord] == 1:
+        if (coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071)):
+            if difference_array[coord] == 1:
+                difference_array[coord] = 3
 
-            difference_array[coord] = 3
-        # if it wasnt set yet, then it didnt appear in the computed list, so set it equal to 2
-        elif difference_array[coord] == 0:
+            # if it wasnt set yet, then it didnt appear in the computed list, so set it equal to 2
+            elif difference_array[coord] == 0:
+                difference_array[coord] = 2
+                
+    '''
+    for coord in sample_bpm_coordinates:
+        if (coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071)):
             difference_array[coord] = 2
 
-    # write the resulting difference array to a FITS file
+    for coord in final_bpm_list:
+        if (coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071)):
+            if difference_array[coord] == 2:
+                difference_array[coord] = 3
+            else:
+                difference_array[coord] = 1
+
+    only_in_sample_mask = list(set(sample_bpm_coordinates) - set(final_bpm_coordinates))
+    only_in_computed_mask = list(set(final_bpm_coordinates) - set(sample_bpm_coordinates))
+    intersection = list(set(final_bpm_coordinates) & set(sample_bpm_coordinates))
+
+    '''
+    print("Neglecting the overscan region, the sample BPM has {0} bad pixels.".format(numpy.count_nonzero(bpm_data[17:3071][4:2046])))
+    print("Neglecting the overscan region, the actual BPM has {0} bad pixels.".format(numpy.count_nonzero(final_bpm_mask[17:3071][4:2046])))
+    
+    '''
+    print("Neglecting the overscan region, the sample BPM has {0} bad pixels.".format(len(sample_bpm_coordinates)))
+    print("Neglecting the overscan region, the actual BPM has {0} bad pixels.".format(len(final_bpm_coordinates)))
+
+    print("{0} pixels only appeared in example mask, {1} only appeared in computed mask, and {2} appeared in both".format(len(only_in_sample_mask),
+                                                                                                                                 len(only_in_computed_mask),
+                                                                                                                                 len(intersection)))
+
+    '''
+    print("Printing statistics about the difference array.")
+    unique, counts = numpy.unique(difference_array, return_counts=True)
+
+    print(numpy.asarray((unique, counts)).T)
 
     pdb.set_trace()
+    '''
+
+    # write the resulting difference array to a FITS file
 
     new_hdu = astropy.io.fits.PrimaryHDU(difference_array.astype(numpy.uint8))
     new_hdu_list = astropy.io.fits.HDUList([new_hdu])
 
-    print("The intersection of the two lists is:", list_intersection)
-
     new_hdu_list.writeto(os.path.join('test', 'difference_array.fits'), overwrite=True, output_verify='exception')
     new_hdu_list.close()
-
-
-
 
     logger.info('Exiting main function.')
 
@@ -260,6 +319,8 @@ def extract_data_from_files(image_list, prefixes_array):
             if image_filename.endswith("{0}.fits".format(prefix)):
                 image_data, image_headers, image_shape = fits_utilities.read_individual_fits_file(image_filename)
 
+                #print("Current file: {0} has a DETSEC header of: {1}".format(image_filename, image_headers['DETSEC']))
+                logging.info("Current image has shape: {0}".format(image_shape))
                 # Create image object
                 image = image_object.ImageObject(image_data, image_headers)
 
@@ -419,8 +480,14 @@ def combine_bad_pixel_locations(arrays_of_bad_pixels, debug=False):
 
     """
 
+    # remove all coordinates in the list of bad pixels that are NOT in the trimsec region
+
     for index, arr in enumerate(arrays_of_bad_pixels):
-        logger.info("{0} bad pixels were detected for calibration type #{1}".format(len(arr), index))
+        logger.info("{0} overall bad pixels were detected for calibration type #{1}".format(len(arr), index))
+
+        trimmed_arr = [tuple(coords) for coords in arr if coords[0] in range(4, 2046) and coords[1] in range(17, 3071)]
+
+        logger.info("{0} pixels for the calibration type, neglecting the overscan (i.e. only the trimsec)".format(len(trimmed_arr)))
 
         if debug == True:
             indiv_file_path = os.path.join("debug","{0}_bpm.txt".format(index))

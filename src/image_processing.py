@@ -1,8 +1,11 @@
 import fractions
+import collections
 import numpy
 import astropy.stats
 import pdb
 import logging
+
+import script
 
 def sigma_clip_individual(image_array, sigma_hi, sigma_low):
     """Applies the median filter to one image, and returns back diagnostic information.
@@ -47,7 +50,7 @@ def test_adjacent_pixels(bad_pixel_list):
     return max_neighboring_bad_pixels
 
 
-def biases_processing(image_objects, sigma_min=7, sigma_max=7):
+def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.30):
     """**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -63,12 +66,14 @@ def biases_processing(image_objects, sigma_min=7, sigma_max=7):
     :rtype: list
     """
 
-    logging.info("Beginning processing on {0} bias images".format(len(image_objects)))
+    #logging.info("Beginning processing on {0} bias images".format(len(image_objects)))
+    script.logger.info("Beginning processing on {0} bias images".format(len(image_objects)))
 
     corrected_images_list = []
 
     images_datas = [image.get_image_data() for image in image_objects]
     masked_indices_list = []
+    filtered_std_deviation_list = []
 
     for image_data in images_datas:
         center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1, 4))
@@ -78,14 +83,36 @@ def biases_processing(image_objects, sigma_min=7, sigma_max=7):
 
         corrected_images_list.append(corrected_image)
 
-        sclipped_image = astropy.stats.sigma_clip(data=corrected_image, sigma_lower=sigma_min, sigma_upper=sigma_max)
+        sclipped_image = astropy.stats.sigma_clip(data=corrected_image, sigma_lower=sigma_min, sigma_upper=sigma_max, iters=5)
 
         masked_indices = numpy.transpose(numpy.ma.getmask(sclipped_image).nonzero())
 
+        filtered_image = numpy.ma.masked_array(corrected_image, mask=numpy.logical_not(sclipped_image))
+
         masked_indices_list.append(masked_indices)
 
+        stddev = numpy.std(filtered_image)
+
+        filtered_std_deviation_list.append(stddev)
+
     # Return a flattened list containing all coordinates that failed the sigma clipping
-    return [tuple(coords) for sublist in masked_indices_list for coords in sublist]
+    combined_list_of_failed_pixels = [tuple(coords) for sublist in masked_indices_list for coords in sublist]
+
+    # the array containing the median-subtracted values that passed the image filtering. the sclipped image contains a
+    # TRUE in every pixel that was removed, but since we want the pixels that were NOT removed, we invert the mask
+
+    print("std deviation of filtered images:", filtered_std_deviation_list)
+
+    # once  you have the flattened list, count the frequencies of each pixel (i.e., how many times that specific pixel
+    # appears in the list. Only use pixels who appear more than 30% of the time
+    bias_bad_pixel_counter = collections.Counter(combined_list_of_failed_pixels)
+
+    thresholded_bias_bad_pixel_list = [key for (key, value) in bias_bad_pixel_counter.items() if \
+                                       (value >= (pct_threshold * len(images_datas)))]
+
+    #pdb.set_trace()
+
+    return thresholded_bias_bad_pixel_list
 
 
 def darks_processing(image_objects, sigma_threshold=7):
@@ -129,8 +156,6 @@ def darks_processing(image_objects, sigma_threshold=7):
     filtered_array = numpy.ma.masked_outside(per_pixel_mean, range_start, range_end)
 
     masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
-
-
 
     return [tuple(coordinates) for coordinates in masked_indices.tolist()]
 
