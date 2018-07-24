@@ -101,8 +101,6 @@ def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.3
     # the array containing the median-subtracted values that passed the image filtering. the sclipped image contains a
     # TRUE in every pixel that was removed, but since we want the pixels that were NOT removed, we invert the mask
 
-    print("std deviation of filtered images:", filtered_std_deviation_list)
-
     # once  you have the flattened list, count the frequencies of each pixel (i.e., how many times that specific pixel
     # appears in the list. Only use pixels who appear more than 30% of the time
     bias_bad_pixel_counter = collections.Counter(combined_list_of_failed_pixels)

@@ -100,8 +100,6 @@ def main(arg1):
         else:
             continue
 
-
-
     # TRIMSEC is reported as [18:3071, 5:2046] so use that range to compare the two BPMS
     sample_bpm_coordinates = (numpy.transpose(numpy.where(bpm_data))).tolist()
     #sample_bpm_coordinates = [tuple(coords) for coords in sample_bpm_coordinates]
@@ -140,9 +138,51 @@ def main(arg1):
             else:
                 difference_array[coord] = 1
 
+
+    # how many of the bad pixels from bias images are in the sample bpm mask as well
+    set_sample_bpm_coords = set(sample_bpm_coordinates)
+    set_final_bpm_coords = set(final_bpm_coordinates)
+
+    '''
+    dark_only_in_saimple_mask = list(set(sample_bpm_coordinates) - set(dark_bad_pixels))
+
+    flat_only_in_sample_mask = list(set(sample_bpm_coordinates) - set(flat_bad_pixels))
+
     only_in_sample_mask = list(set(sample_bpm_coordinates) - set(final_bpm_coordinates))
     only_in_computed_mask = list(set(final_bpm_coordinates) - set(sample_bpm_coordinates))
     intersection = list(set(final_bpm_coordinates) & set(sample_bpm_coordinates))
+    '''
+
+    bias_bpm_intersection = set.intersection(set_sample_bpm_coords, set(bias_bad_pixels))
+    dark_bpm_intersection = set.intersection(set_sample_bpm_coords, set(dark_bad_pixels))
+    flat_bpm_intersection = set.intersection(set_sample_bpm_coords, set(flat_bad_pixels))
+
+    print("Of all the {6} pixels in the sample mask, {0}/{1} were detected in the bias, {2}/{3} were detected in the darks,"
+          "{4}/{5} were detected in the flats.".format(len(bias_bpm_intersection), len(bias_bad_pixels), len(dark_bpm_intersection), len(dark_bad_pixels),
+                                                       len(flat_bpm_intersection), len(flat_bad_pixels), len(set_sample_bpm_coords)))
+
+    # trim the overscan region
+    trimmed_bias_bad_pixels = [coords for coords in bias_bad_pixels if (coords[0] in range(4, 2046) and coords[1] in range(17, 3071))]
+    trimmed_dark_bad_pixels = [coords for coords in dark_bad_pixels if (coords[0] in range(4, 2046) and coords[1] in range(17, 3071))]
+    trimmed_flat_bad_pixels = [coords for coords in flat_bad_pixels if (coords[0] in range(4, 2046) and coords[1] in range(17, 3071))]
+
+
+    trimmed_bias_bpm_intersection = set.intersection(set_sample_bpm_coords,set(trimmed_bias_bad_pixels))
+    trimmed_dark_bpm_intersection = set.intersection(set_sample_bpm_coords, set(trimmed_dark_bad_pixels))
+    trimmed_flat_bpm_intersection = set.intersection(set_sample_bpm_coords, set(trimmed_flat_bad_pixels))
+
+    print("If we account for the trim section, these figures change to\
+          {0} / {1} pixels in bias, {2} / {3} pixels in darks, {4} / {5} pixels in flats.".format(len(trimmed_bias_bpm_intersection),
+                                                                                                  len(trimmed_bias_bad_pixels),
+                                                                                                  len(trimmed_dark_bpm_intersection),
+                                                                                                  len(trimmed_dark_bad_pixels),
+                                                                                                  len(trimmed_flat_bpm_intersection),
+                                                                                                  len(trimmed_flat_bad_pixels)))
+
+
+    only_in_sample_mask = list(set_sample_bpm_coords - set_final_bpm_coords)
+    only_in_computed_mask = list(set_final_bpm_coords - set_sample_bpm_coords)
+    intersection = list(set_final_bpm_coords & set_sample_bpm_coords)
 
     '''
     print("Neglecting the overscan region, the sample BPM has {0} bad pixels.".format(numpy.count_nonzero(bpm_data[17:3071][4:2046])))
@@ -156,6 +196,8 @@ def main(arg1):
                                                                                                                                  len(only_in_computed_mask),
                                                                                                                                  len(intersection)))
 
+
+    print("The pixels that appeared in the sample bad pixel mask are:", sample_bpm_coordinates)
     '''
     print("Printing statistics about the difference array.")
     unique, counts = numpy.unique(difference_array, return_counts=True)
