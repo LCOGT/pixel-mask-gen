@@ -7,7 +7,7 @@ LABEL "repo-name"="pixel-mask-gen"
 LABEL "repo-link"="https://github.com/LCOGT/pixel-mask-gen"
 
 # you have to ADD every file that your code will need to run (?)
-ADD script.py /
+ADD src/ src/
 
 ADD requirements.txt /
 
@@ -19,6 +19,8 @@ ADD debug/ debug/
 
 ADD documentation/ documentation/
 
+ADD sample_images/ sample_images/
+
 # Install requirements
 RUN ["pip" ,"install", "-r", "requirements.txt"]
 
@@ -28,4 +30,4 @@ RUN ["python3", "-m", "unittest", "-v", "test/test_script.py"]
 
 # CMD tells docker what to do when you actually do "docker run <my-image>".
 # THERE CAN ONLY BE ONE OF THESE PER DOCKERFILE
-CMD ["python3", "script.py", "config.yml"]
+CMD ["python3", "-m", "src.script", "config.yml"]
