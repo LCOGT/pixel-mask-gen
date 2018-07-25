@@ -131,10 +131,11 @@ def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.30):
     masked_indices_list = []
 
     logging.info("Beginning darks processing with {0} images".format(len(image_objects)))
-    corrected_image_list = []
+
 
     for image in image_objects:
         # Divide every pixel in the image by its exposure time, then store the new 'image' in a list
+        '''
         exposure_time = image.get_image_header(key='EXPTIME')
         corrected_image = numpy.divide(image.get_image_data(), exposure_time)
         corrected_image_list.append(corrected_image)
@@ -150,6 +151,24 @@ def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.30):
         masked_indices = numpy.transpose(filtered_image.nonzero())
 
         masked_indices_list.append(masked_indices)
+        '''
+
+        bias_sect = image.get_image_header(key='BIASSEC')
+        image_data = image.get_image_data()
+        overscan_region_median = numpy.median(image_data[1:2048, 3100:3135])
+
+        image_data = numpy.subtract(image_data, overscan_region_median)
+
+        exposure_time = image.get_image_header(key='EXPTIME')
+
+        image_data /= exposure_time
+
+        filtered_image = numpy.ma.masked_where(image_data, image_data < 50)
+
+        masked_indices = numpy.transpose(filtered_image.nonzero())
+
+        masked_indices_list.append(masked_indices)
+
 
     combined_list_of_bad_pixels =  [tuple(coords) for sublist in masked_indices_list for coords in sublist]
 
@@ -158,6 +177,8 @@ def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.30):
 
     thresholded_darks_bad_pixel_list = [key for (key, value) in darks_bad_pixel_counter.items() if \
                             (value >= (pct_threshold * len(image_objects)))]
+
+    pdb.set_trace()
 
     return thresholded_darks_bad_pixel_list
 

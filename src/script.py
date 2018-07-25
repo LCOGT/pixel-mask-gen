@@ -156,6 +156,10 @@ def main(arg1):
 
     print(display_stats)
 
+    symmetric_difference = set.symmetric_difference(set_sample_bpm_coords, set_final_bpm_coords)
+
+    print(symmetric_difference)
+
     only_in_sample_mask = list(set_sample_bpm_coords - set_final_bpm_coords)
     only_in_computed_mask = list(set_final_bpm_coords - set_sample_bpm_coords)
     intersection = list(set_final_bpm_coords & set_sample_bpm_coords)
