@@ -6,7 +6,6 @@ import pdb
 import logging
 import os
 
-import script
 
 def sigma_clip_individual(image_array, sigma_hi, sigma_low):
     """Applies the median filter to one image, and returns back diagnostic information.
@@ -70,7 +69,7 @@ def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.3
     """
 
     #logging.info("Beginning processing on {0} bias images".format(len(image_objects)))
-    script.logger.info("Beginning processing on {0} bias images".format(len(image_objects)))
+    #script.logger.info("Beginning processing on {0} bias images".format(len(image_objects)))
 
     corrected_images_list = []
 
@@ -163,7 +162,7 @@ def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.30):
 
         image_data /= exposure_time
 
-        filtered_image = numpy.ma.masked_where(image_data, image_data < 50)
+        filtered_image = numpy.ma.masked_where(image_data, image_data >= 50)
 
         masked_indices = numpy.transpose(filtered_image.nonzero())
 
