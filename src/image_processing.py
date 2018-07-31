@@ -163,7 +163,7 @@ def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.10):
 
         image_data /= exposure_time
 
-        filtered_image = numpy.ma.masked_less(image_data, 50)
+        filtered_image = numpy.ma.masked_less(image_data, 35)
 
         masked_indices = numpy.transpose(filtered_image.nonzero())
 
