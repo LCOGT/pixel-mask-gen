@@ -112,15 +112,13 @@ def main(arg1):
     bpm_count_actual, bpm_count_expected = 0, 0
 
     for coord in sample_bpm_coordinates:
-        if (coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071)):
-            difference_array[coord] = 2
+        difference_array[coord] = 2
 
     for coord in final_bpm_list:
-        if (coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071)):
-            if difference_array[coord] == 2:
-                difference_array[coord] = 3
-            else:
-                difference_array[coord] = 1
+        if difference_array[coord] == 2:
+            difference_array[coord] = 3
+        else:
+            difference_array[coord] = 1
 
     set_sample_bpm_coords = set(sample_bpm_coordinates)
     set_final_bpm_coords = set(final_bpm_coordinates)
@@ -136,8 +134,8 @@ def main(arg1):
     '''
 
     bias_bad_pixels = [coord for coord in bias_bad_pixels if ((coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071)))]
-    dark_bad_pixel = [coord  for coord in dark_bad_pixels if (coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071))]
-    flat_bad_pixel = [coord for coord in flat_bad_pixels if (coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071))]
+    dark_bad_pixels = [coord  for coord in dark_bad_pixels if (coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071))]
+    flat_bad_pixels = [coord for coord in flat_bad_pixels if (coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071))]
 
     bias_bpm_intersection = set.intersection(set_sample_bpm_coords, set(bias_bad_pixels))
     dark_bpm_intersection = set.intersection(set_sample_bpm_coords, set(dark_bad_pixels))
@@ -147,10 +145,11 @@ def main(arg1):
     (statistics ignore trim region)
     Given/sample mask: {0}
     Computed mask: {1}
-    Type breakdown
+    
     --------------
-    Biases \\t Darks \\t Flats
-    Computed mask had {2} pixels, {3} of which appeared in sample mask \\t Computed mask had {4} pixels, {5} of which appeared in sample mask \\t Computed mask had {6} sample pixels, {7} of which appeared in sample mask
+    Biases \n Darks \n Flats
+
+    Computed mask had {2} pixels, {3} of which appeared in sample mask \n Computed mask had {4} pixels, {5} of which appeared in sample mask \n Computed mask had {6} sample pixels, {7} of which appeared in sample mask
     """.format(len(sample_bpm_coordinates), len(final_bpm_coordinates), len(bias_bad_pixels), len(bias_bpm_intersection), len(dark_bad_pixels), len(dark_bpm_intersection), len(flat_bad_pixels), len(flat_bpm_intersection))
 
 
@@ -158,13 +157,19 @@ def main(arg1):
 
     symmetric_difference = set.symmetric_difference(set_sample_bpm_coords, set_final_bpm_coords)
 
-    print(symmetric_difference)
+    print("symmetric difference: ", symmetric_difference)
+
 
     only_in_sample_mask = list(set_sample_bpm_coords - set_final_bpm_coords)
     only_in_computed_mask = list(set_final_bpm_coords - set_sample_bpm_coords)
     intersection = list(set_final_bpm_coords & set_sample_bpm_coords)
 
 
+    print("pixels only in sample mask:", only_in_sample_mask)
+    print("pixels only in computed mask:", only_in_computed_mask)
+
+
+    print("The dark current (e / s) of the pixels only in the computed mask are:")
 
     '''
     print("Neglecting the overscan region, the sample BPM has {0} bad pixels.".format(numpy.count_nonzero(bpm_data[17:3071][4:2046])))

@@ -113,7 +113,7 @@ def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.3
     return thresholded_bias_bad_pixel_list
 
 
-def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.30):
+def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.10):
     r"""**Algorithm**
 
     Divide all dark images :math:`d_i` by their respective exposure time (:math:`e_i`) to get :math:`\bar{d_i}`
@@ -131,6 +131,7 @@ def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.30):
 
     logging.info("Beginning darks processing with {0} images".format(len(image_objects)))
 
+    pixels_to_consider = [(253, 615), (363, 159), (733, 801), (1836, 2389), (1109, 2900), (955, 372), (1492, 2036), (1817, 838), (1627, 1164), (435, 216), (975, 2310), (2024, 818), (475, 1861), (544, 2844), (1782, 574), (1169, 1043), (763, 2055), (616, 2279), (692, 1615), (1250, 2094), (434, 1615), (38, 220), (1981, 2837), (278, 2254), (1834, 1176), (1642, 1880), (14, 1263), (1832, 2994), (1500, 1369), (1501, 48)]
 
     for image in image_objects:
         # Divide every pixel in the image by its exposure time, then store the new 'image' in a list
@@ -162,22 +163,23 @@ def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.30):
 
         image_data /= exposure_time
 
-        filtered_image = numpy.ma.masked_where(image_data, image_data >= 50)
+        filtered_image = numpy.ma.masked_less(image_data, 50)
 
         masked_indices = numpy.transpose(filtered_image.nonzero())
 
         masked_indices_list.append(masked_indices)
 
+        for pixel in pixels_to_consider:
+            print("pixel: {0}, electrons/second: {1}".format(pixel, image_data[pixel]))
+
+
 
     combined_list_of_bad_pixels =  [tuple(coords) for sublist in masked_indices_list for coords in sublist]
-
 
     darks_bad_pixel_counter = collections.Counter(combined_list_of_bad_pixels)
 
     thresholded_darks_bad_pixel_list = [key for (key, value) in darks_bad_pixel_counter.items() if \
                             (value >= (pct_threshold * len(image_objects)))]
-
-    pdb.set_trace()
 
     return thresholded_darks_bad_pixel_list
 
