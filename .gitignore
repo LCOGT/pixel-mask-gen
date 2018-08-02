@@ -6,7 +6,6 @@ lib64/
 lib64
 lib/
 include/
-env/
 bin/
 htmlcov/
 env/
@@ -14,3 +13,4 @@ pip-selfcheck.json
 pyvenv.cfg
 documentation/_build
 documentation/_templates
+sample_images/
