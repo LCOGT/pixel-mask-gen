@@ -1,32 +1,8 @@
 import fractions
-import collections
 import numpy
 import astropy.stats
 
 import setup.LOGGER as logger
-
-
-def sigma_clip_individual(image_array, sigma_hi, sigma_low):
-    """Applies the median filter to one image, and returns back diagnostic information.
-
-    :param image_array: A numpy array that represents the FITS file image
-    :param sigma_hi: The upper limit in standard deviations to filter on
-    :param sigma_low: The lower limit in standard deviations to filter on
-    :returns mfiltered_array: a numpy array that has been median filtered (the filtered entries are masked)
-    :returns masked_indices: the coordinates (x,y) that were masked by the median filter
-    :returns percentage_mask: the percentage of pixels that were masked by the median filter
-
-    """
-
-    mfiltered_array = astropy.stats.sigma_clip(data=image_array,
-                                        sigma_lower=sigma_low,
-                                        sigma_upper=sigma_hi)
-
-    masked_indices = numpy.transpose(numpy.ma.getmask(mfiltered_array).nonzero())
-
-    percentage_masked = (len(masked_indices) / mfiltered_array.size) * 100
-
-    return (mfiltered_array, masked_indices, percentage_masked)
 
 
 def apply_bias_processing(hdu_objects, sigma_min=7, sigma_max=7, pct_threshold=0.30):
@@ -66,23 +42,6 @@ def apply_bias_processing(hdu_objects, sigma_min=7, sigma_max=7, pct_threshold=0
     return list_of_masks
 
 
-def extract_coordinates_from_header_string(header_string):
-    """
-    Utility for converting a specified string in the header into integers that can be used to slice an array.
-
-    Example:  '[3100:3135,1:2048]' --> [3100, 3135, 1, 2048]
-
-
-    :param header_string:
-    :return: coordinate_list
-    """
-
-    two_d_coordinates = header_string.split(',')
-    col_start, col_end = two_d_coordinates[0].split(':')
-    row_start, row_end = two_d_coordinates[1].split(':')
-
-    return [row_start, row_end, col_start, col_end]
-
 def darks_processing(hdu_objects,dark_current_threshold=35):
     r"""**Algorithm**
 
@@ -92,6 +51,10 @@ def darks_processing(hdu_objects,dark_current_threshold=35):
 
     3. Filter any images that have a dark current of more than 35 electrons/second.
 
+    :param hdu_objects: A list of Header Data Unit objects.
+    :param dark_current_threshold: The minimum dark current (in Electrons/second) you'd like to allow in your image.
+
+    :return: A list of boolean arrays
 
     """
 
@@ -128,7 +91,7 @@ def darks_processing(hdu_objects,dark_current_threshold=35):
     return list_of_masks
 
 
-def flats_processing(image_objects, sigma_threshold=7):
+def flats_processing(hdu_objects, sigma_threshold=7):
     r"""**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -148,20 +111,19 @@ def flats_processing(image_objects, sigma_threshold=7):
 
     Where for a normal distribution, :math:`k\approx 1.4826`.
 
-    :param image_objects: an array of image ojbects
-    :return: A list of tuples where each tuple contains a pixel location that was flagged from the flats images.
-    :rtype: list
+    :param
     """
 
-    logger.debug("Beginning flats processing on {0} images".format(len(image_objects)))
+    logger.debug("Beginning flats processing on {0} images".format(len(hdu_objects)))
 
-    images_datas = [image.get_image_data() for image in image_objects]
+    list_of_masks = []
     corrected_images_list = []
 
-    for image_data in images_datas:
-        center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1, 4))
+    for hdu in hdu_objects:
+        image_data = hdu.data
+        center_quarter = extract_center_fraction_region(hdu.data, fractions.Fraction(1, 4))
         center_quarter_median = numpy.median(center_quarter)
-        corrected_image = numpy.divide(image_data, center_quarter_median)
+        corrected_image = image_data / center_quarter_median
         corrected_images_list.append(corrected_image)
 
     # Create a 3D array out of all the corrected images, where (x,y) plane is the original image and the z-axis is what
@@ -174,18 +136,21 @@ def flats_processing(image_objects, sigma_threshold=7):
 
     mad = astropy.stats.median_absolute_deviation(std_deviations_array)
 
-    # once you have the MAD, mask any values outside the range of the ssigma threshold
+    # once you have the MAD, mask any values outside the range of the sigma threshold
     k = 1.4826
-    range_start, range_end = mad - ((k * mad ) * sigma_threshold),\
-                             mad + ((k * mad) * sigma_threshold)
+    range_start, range_end = mad - ((k * mad ) * sigma_threshold), mad + ((k * mad) * sigma_threshold)
 
     filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start, range_end)
 
-    masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
+    list_of_masks.append(filtered_array)
+
+    logger.debug("Finished flats processing")
+    return list_of_masks
 
 
-    return [tuple(coordinates) for coordinates in masked_indices.tolist()]
-
+# ------------------------------------------------------------
+# UTILITY FUNCTIONS
+# ------------------------------------------------------------
 
 def extract_center_fraction_region(original_image_data, fraction):
     r"""Extract and return the center fraction of an image
@@ -197,7 +162,6 @@ def extract_center_fraction_region(original_image_data, fraction):
 
     """
 
-    logger.info("Beginning center fraction extraction of image with shape: {0}".format(original_image_data.shape))
     row,col = original_image_data.shape
 
     if (row == 0) or (col == 0):
@@ -216,3 +180,19 @@ def extract_center_fraction_region(original_image_data, fraction):
     extracted_image = original_image_data[new_image_y : -new_image_y, new_image_x : -new_image_x]
 
     return extracted_image
+
+def extract_coordinates_from_header_string(header_string):
+    """
+    Utility for converting a specified string in the header into integers that can be used to slice an array.
+
+    Example:  '[3100:3135,1:2048]' --> [3100, 3135, 1, 2048]
+
+    :param header_string: A string in the form "[x:y, a:b]"
+    :return: A list of 4 integers, in the form [starting row, ending row, starting column, ending column]
+    """
+
+    two_d_coordinates = header_string.split(',')
+    col_start, col_end = two_d_coordinates[0].split(':')
+    row_start, row_end = two_d_coordinates[1].split(':')
+
+    return [row_start, row_end, col_start, col_end]
