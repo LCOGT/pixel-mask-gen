@@ -2,7 +2,8 @@ import fractions
 import collections
 import numpy
 import astropy.stats
-import logging
+
+import setup.LOGGER as logger
 
 
 def sigma_clip_individual(image_array, sigma_hi, sigma_low):
@@ -27,7 +28,8 @@ def sigma_clip_individual(image_array, sigma_hi, sigma_low):
 
     return (mfiltered_array, masked_indices, percentage_masked)
 
-def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.30):
+
+def apply_bias_processing(hdu_objects, sigma_min=7, sigma_max=7, pct_threshold=0.30):
     """**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -38,17 +40,15 @@ def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.3
     collected the list of pixels that don't pass, ensure that the same pixel appears at least 30% of the time before \
     marking it as truly 'bad'.
 
-    :param image_objects: A list of image objects
-    :param sigma_min: the lower sigma threshold to use
-    :param sigma_max: the upper sigma threshold to use
-    :return: A list of tuples where each tuple contains a pixel location that was flagged from the bias images.
-    :rtype: list
-    """
-    corrected_images_list = []
+    :param hdu_objects:
 
-    images_datas = [image.get_image_data() for image in image_objects]
-    masked_indices_list = []
-    filtered_std_deviation_list = []
+    """
+
+    logger.debug("Beginning bias processing on {0} images".format(len(hdu_objects)))
+
+    images_datas = [hdu.data for hdu in hdu_objects]
+
+    list_of_masks = []
 
     for image_data in images_datas:
         center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1, 4))
@@ -56,37 +56,34 @@ def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.3
 
         corrected_image = numpy.subtract(image_data, center_quarter_median)
 
-        corrected_images_list.append(corrected_image)
-
         sclipped_image = astropy.stats.sigma_clip(data=corrected_image, sigma_lower=sigma_min, sigma_upper=sigma_max, iters=5)
 
-        masked_indices = numpy.transpose(numpy.ma.getmask(sclipped_image).nonzero())
+        sclipped_image_as_masked_array = numpy.ma.getmaskarray(sclipped_image)
 
-        filtered_image = numpy.ma.masked_array(corrected_image, mask=numpy.logical_not(sclipped_image))
+        list_of_masks.append(sclipped_image_as_masked_array)
 
-        masked_indices_list.append(masked_indices)
-
-        stddev = numpy.std(filtered_image)
-
-        filtered_std_deviation_list.append(stddev)
-
-    # Return a flattened list containing all coordinates that failed the sigma clipping
-    combined_list_of_failed_pixels = [tuple(coords) for sublist in masked_indices_list for coords in sublist]
-
-    # the array containing the median-subtracted values that passed the image filtering. the sclipped image contains a
-    # TRUE in every pixel that was removed, but since we want the pixels that were NOT removed, we invert the mask
-
-    # once  you have the flattened list, count the frequencies of each pixel (i.e., how many times that specific pixel
-    # appears in the list. Only use pixels who appear more than 30% of the time
-    bias_bad_pixel_counter = collections.Counter(combined_list_of_failed_pixels)
-
-    thresholded_bias_bad_pixel_list = [key for (key, value) in bias_bad_pixel_counter.items() if \
-                                       (value >= (pct_threshold * len(images_datas)))]
-
-    return thresholded_bias_bad_pixel_list
+    logger.debug("Completed bias processing")
+    return list_of_masks
 
 
-def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.10):
+def extract_coordinates_from_header_string(header_string):
+    """
+    Utility for converting a specified string in the header into integers that can be used to slice an array.
+
+    Example:  '[3100:3135,1:2048]' --> [3100, 3135, 1, 2048]
+
+
+    :param header_string:
+    :return: coordinate_list
+    """
+
+    two_d_coordinates = header_string.split(',')
+    col_start, col_end = two_d_coordinates[0].split(':')
+    row_start, row_end = two_d_coordinates[1].split(':')
+
+    return [row_start, row_end, col_start, col_end]
+
+def darks_processing(hdu_objects,dark_current_threshold=35):
     r"""**Algorithm**
 
     1. Locate the overscan region of each image, and divide the entire image by the median of the overscan region.
@@ -95,51 +92,40 @@ def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.10):
 
     3. Filter any images that have a dark current of more than 35 electrons/second.
 
-    :param image_objects: A list of image objects. See `image_objects.py` file.
 
-    :return:  A list of tuples were each tuple contains a pixel location that was flagged from the darks images.
-
-    :rtype: list
     """
 
-    masked_indices_list = []
+    logger.debug("Beginning darks processing on {0} images".format(len(hdu_objects)))
 
-    logging.info("Beginning darks processing with {0} images".format(len(image_objects)))
+    list_of_masks = []
 
-    pixels_to_consider = [(253, 615), (363, 159), (733, 801), (1836, 2389), (1109, 2900), (955, 372), (1492, 2036), (1817, 838), (1627, 1164), (435, 216), (975, 2310), (2024, 818), (475, 1861), (544, 2844), (1782, 574), (1169, 1043), (763, 2055), (616, 2279), (692, 1615), (1250, 2094), (434, 1615), (38, 220), (1981, 2837), (278, 2254), (1834, 1176), (1642, 1880), (14, 1263), (1832, 2994), (1500, 1369), (1501, 48)]
-
-    for image in image_objects:
+    for hdu in hdu_objects:
         # Divide every pixel in the image by its exposure time, then store the new 'image' in a list
 
-        bias_sect = image.get_image_header(key='BIASSEC')
-        image_data = image.get_image_data()
-        overscan_region_median = numpy.median(image_data[1:2048, 3100:3135])
+        bias_section_header_string = hdu.header['BIASSEC']
 
-        image_data = numpy.subtract(image_data, overscan_region_median)
+        image_data = hdu.data
 
-        exposure_time = image.get_image_header(key='EXPTIME')
+        overscan_region_coordinates = extract_coordinates_from_header_string(bias_section_header_string)
+
+        # Remember that numpy does indexing in reverse order, e.g. (row : col) -> (col, row)
+        cropped_image_data = image_data[overscan_region_coordinates[2] : overscan_region_coordinates[3],
+                                        overscan_region_coordinates[1] : overscan_region_coordinates[4]]
+
+        cropped_image_data_median = numpy.median(cropped_image_data)
+
+        image_data -= cropped_image_data_median
+
+        exposure_time = float(hdu.header['EXPTIME'])
 
         image_data /= exposure_time
 
-        filtered_image = numpy.ma.masked_less(image_data, 35)
+        masked_image = image_data < dark_current_threshold
 
-        masked_indices = numpy.transpose(filtered_image.nonzero())
+        list_of_masks.append(masked_image)
 
-        masked_indices_list.append(masked_indices)
-
-        for pixel in pixels_to_consider:
-            print("pixel: {0}, electrons/second: {1}".format(pixel, image_data[pixel]))
-
-
-
-    combined_list_of_bad_pixels =  [tuple(coords) for sublist in masked_indices_list for coords in sublist]
-
-    darks_bad_pixel_counter = collections.Counter(combined_list_of_bad_pixels)
-
-    thresholded_darks_bad_pixel_list = [key for (key, value) in darks_bad_pixel_counter.items() if \
-                            (value >= (pct_threshold * len(image_objects)))]
-
-    return thresholded_darks_bad_pixel_list
+    logger.debug("Finished darks processing.")
+    return list_of_masks
 
 
 def flats_processing(image_objects, sigma_threshold=7):
@@ -167,7 +153,7 @@ def flats_processing(image_objects, sigma_threshold=7):
     :rtype: list
     """
 
-    logging.info("Beginning flats processing on {0} images".format(len(image_objects)))
+    logger.debug("Beginning flats processing on {0} images".format(len(image_objects)))
 
     images_datas = [image.get_image_data() for image in image_objects]
     corrected_images_list = []
@@ -211,7 +197,7 @@ def extract_center_fraction_region(original_image_data, fraction):
 
     """
 
-    logging.info("Beginning center fraction extraction of image with shape: {0}".format(original_image_data.shape))
+    logger.info("Beginning center fraction extraction of image with shape: {0}".format(original_image_data.shape))
     row,col = original_image_data.shape
 
     if (row == 0) or (col == 0):

@@ -35,11 +35,17 @@ def main(source_file_path):
 
     absolute_source_file_path = os.path.abspath(source_file_path)
 
+    hdu_for_images = get_image_hdus(absolute_source_file_path)
+
+    # This is a code smell, please fix this
+    bias_hdu_objects = sort_images_by_type('bias', hdu_for_images)
+    dark_hdu_objects = sort_images_by_type('dark', hdu_for_images)
+    flat_hdu_objects = sort_images_by_type('flat', hdu_for_images)
 
 
 
 
-def get_hdulist_from_folder(absolute_path_to_images):
+def get_image_hdus(absolute_path_to_images, hdu_to_retrieve=0):
     """
     Takes an absolute directory that contains images and converts those images to a list of header data objects.
 
@@ -51,11 +57,25 @@ def get_hdulist_from_folder(absolute_path_to_images):
 
     fits_images_list = [os.path.abspath(path) for path in glob.glob(file_wildcard_pattern)]
 
-    hdu_list_for_images = [astropy.io.fits.open(fits_image, mode='readonly') for fits_image in fits_images_list]
+    hdu_list_for_images = [(astropy.io.fits.open(fits_image, mode='readonly'))[0] for fits_image in fits_images_list]
 
     return hdu_list_for_images
 
+def sort_images_by_type(image_type, hdu_list):
+    """
+    Takes in a list of HDU objects, and only preserves the HDU objects whose obstype match the specified image type.
 
+    :param image_type: One of either: 'bias', 'dark', 'flat'.
+    :return: A list of HDU objects
+    :rtype: list
+    """
+
+    desired_hdus = []
+    for hdu in hdu_list:
+        if hdu.header['OBSTYPE'] == image_type:
+            desired_hdus.append(hdu)
+
+    return desired_hdus
 
 
 def generate_flattened_list(list_to_flatten):
