@@ -27,27 +27,6 @@ def sigma_clip_individual(image_array, sigma_hi, sigma_low):
 
     return (mfiltered_array, masked_indices, percentage_masked)
 
-
-def test_adjacent_pixels(bad_pixel_list):
-    """Test if adjacent pixels were marked as 'bad', this indicates some irregular activity, since the probability of \
-    this happening naturally is very low.
-
-    :param indiv_pixel_mask: A list of coordinates where each coordinate was the pixel that was marked as bad
-    :return: The number of bad pixels that were adjacent to each other
-
-    """
-    max_neighboring_bad_pixels = 0
-
-    for (row, col) in bad_pixel_list:
-        # count the number of bad pixels that are adjacent to each other -- excluding diagonal
-        adjacent_bad_pixel_count = sum((r, c) in bad_pixel_list for (r,c) in [(row,col-1), (row,col+1), (row-1, col),
-                                                                              (row+1,col)])
-        if adjacent_bad_pixel_count > max_neighboring_bad_pixels:
-            max_neighboring_bad_pixels = adjacent_bad_pixel_count
-
-    return max_neighboring_bad_pixels
-
-
 def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.30):
     """**Algorithm**
 
