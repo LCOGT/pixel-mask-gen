@@ -9,7 +9,6 @@ import datetime
 import logging
 import sys
 import errno
-import pdb
 
 # Internal
 import src.image_processing as image_processing
@@ -54,39 +53,6 @@ def main(arg1):
     # hardcoded temporarily, should read config.yml to get settings
 
     verification_directory = os.path.join('test', 'example_images')
-    ''' # the commented section below assumes you're getting the original BPM from reading the 2nd extension in a 
-    # BANZAI processed image
-    sample_bpms = test.verification.read_bpms_from_files(verification_directory)
-
-    # compare the known-good bad pixel mask against the computed bad pixel mask. In practice, you should run the
-    # verify_all_bpms_are_equal function
-
-
-    #since arrays are two different sizes, take the minimum of the two dimensions of each, and then do the differences
-    #based on that?
-
-    difference_shape = min(sample_bpms[0].shape, final_bpm_mask.shape)
-
-    # once you have the sample mask, find what coordinates are in it, and compare it to the coordinates in the computed
-    # mask?
-
-    #sample_bpm_coordinates = numpy.transpose(numpy.ma.getmask(sample_bpms[0]).nonzero()).tolist()
-    sample_bpm_coordinates = numpy.transpose(numpy.where(sample_bpms[0])).tolist()
-    sample_bpm_coordinates = [tuple(coords) for coords in sample_bpm_coordinates]
-
-    #final_bpm_coordinates = numpy.transpose(numpy.ma.getmask(final_bpm_mask)).nonzero().tolist()
-
-
-    # compute the intersection of the two arrays, and use that to create a ternary image?
-    # pixel value is 1 if it appears in the computed mask only
-    # 2 if it appears in example mask only
-    # 3 if it appears in both
-
-    list_intersection = list(set(sample_bpm_coordinates) & set(final_bpm_list))
-
-    print("The shape of the actual bad pixel mask is {0}, whereas the computed bad pixel mask is: {1}".format(sample_bpms[0].shape,\
-                                                                                                              final_bpm_mask.shape))
-    '''
 
     for index, filename in enumerate(os.listdir(verification_directory)):
         if filename.startswith('bpm'):
@@ -122,16 +88,6 @@ def main(arg1):
 
     set_sample_bpm_coords = set(sample_bpm_coordinates)
     set_final_bpm_coords = set(final_bpm_coordinates)
-
-    '''
-    dark_only_in_sample_mask = list(set(sample_bpm_coordinates) - set(dark_bad_pixels))
-
-    flat_only_in_sample_mask = list(set(sample_bpm_coordinates) - set(flat_bad_pixels))
-
-    only_in_sample_mask = list(set(sample_bpm_coordinates) - set(final_bpm_coordinates))
-    only_in_computed_mask = list(set(final_bpm_coordinates) - set(sample_bpm_coordinates))
-    intersection = list(set(final_bpm_coordinates) & set(sample_bpm_coordinates))
-    '''
 
     bias_bad_pixels = [coord for coord in bias_bad_pixels if ((coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071)))]
     dark_bad_pixels = [coord  for coord in dark_bad_pixels if (coord[0] in range(4, 2046)) and (coord[1] in range(17, 3071))]
@@ -170,21 +126,6 @@ def main(arg1):
 
 
     print("The dark current (e / s) of the pixels only in the computed mask are:")
-
-    '''
-    print("Neglecting the overscan region, the sample BPM has {0} bad pixels.".format(numpy.count_nonzero(bpm_data[17:3071][4:2046])))
-    print("Neglecting the overscan region, the actual BPM has {0} bad pixels.".format(numpy.count_nonzero(final_bpm_mask[17:3071][4:2046])))
-    
-    '''
-
-    '''
-    print("Neglecting the overscan region, the sample BPM has {0} bad pixels.".format(len(sample_bpm_coordinates)))
-    print("Neglecting the overscan region, the actual BPM has {0} bad pixels.".format(len(final_bpm_coordinates)))
-
-    print("{0} pixels only appeared in example mask, {1} only appeared in computed mask, and {2} appeared in both".format(len(only_in_sample_mask),
-                                                                                                                                 len(only_in_computed_mask),
-                                                                                                                                 len(intersection)))
-    '''
 
     # write the resulting difference array to a FITS file
 
@@ -436,20 +377,6 @@ def run_sigma_clipping(images_arrays, config_file_location):
     # pixel appears, but to count frequency of appearance across images, you'll need to flatten the list
     # a 1D array storing every coordinate that is marked as 'bad', in tuple form
     bias_bpm_flattened, dark_bpm_flattened, flat_bpm_flattened = [], [], []
-    '''
-    # TODO: Remove code reuse
-    for sublist in bias_bpm_collection:
-        for coords in sublist:
-            bias_bpm_flattened.append(tuple(coords))
-
-    for sublist in dark_bpm_collection:
-        for coords in sublist:
-            dark_bpm_flattened.append(tuple(coords))
-
-    for sublist in flat_bpm_collection:
-        for coords in sublist:
-            flat_bpm_flattened.append(tuple(coords))
-    '''
 
     bias_bpm_flattened = generate_flattened_list(bias_bpm_collection)
     dark_bpm_flattened = generate_flattened_list(dark_bpm_collection)

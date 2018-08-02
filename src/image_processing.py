@@ -2,9 +2,7 @@ import fractions
 import collections
 import numpy
 import astropy.stats
-import pdb
 import logging
-import os
 
 
 def sigma_clip_individual(image_array, sigma_hi, sigma_low):
@@ -67,10 +65,6 @@ def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.3
     :return: A list of tuples where each tuple contains a pixel location that was flagged from the bias images.
     :rtype: list
     """
-
-    #logging.info("Beginning processing on {0} bias images".format(len(image_objects)))
-    #script.logger.info("Beginning processing on {0} bias images".format(len(image_objects)))
-
     corrected_images_list = []
 
     images_datas = [image.get_image_data() for image in image_objects]
@@ -116,14 +110,16 @@ def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.3
 def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.10):
     r"""**Algorithm**
 
-    Divide all dark images :math:`d_i` by their respective exposure time (:math:`e_i`) to get :math:`\bar{d_i}`
+    1. Locate the overscan region of each image, and divide the entire image by the median of the overscan region.
 
-    Take the average of each image on a per-pixel basis, to get :math:`\bar{p}_{i,j}`
+    2. Then, divide the exposure time of each image, to obtain the dark current, in units of electrons/second.
 
-    Set a standard deviation threshold :math:`t` and remove all pixels outside the range :math:`\bar{p}_{i,j}  \pm t`
+    3. Filter any images that have a dark current of more than 35 electrons/second.
 
-    :param image_objects:
+    :param image_objects: A list of image objects. See `image_objects.py` file.
+
     :return:  A list of tuples were each tuple contains a pixel location that was flagged from the darks images.
+
     :rtype: list
     """
 
@@ -135,23 +131,6 @@ def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.10):
 
     for image in image_objects:
         # Divide every pixel in the image by its exposure time, then store the new 'image' in a list
-        '''
-        exposure_time = image.get_image_header(key='EXPTIME')
-        corrected_image = numpy.divide(image.get_image_data(), exposure_time)
-        corrected_image_list.append(corrected_image)
-
-        # temporarily: find electrons per pixel then divide by exposure time and flag that way?
-
-        camera_gain = image.get_image_header(key='GAIN')
-
-        electron_counts_per_second = numpy.multiply(corrected_image, camera_gain)
-
-        filtered_image = numpy.ma.masked_where(electron_counts_per_second, electron_counts_per_second < 10)
-
-        masked_indices = numpy.transpose(filtered_image.nonzero())
-
-        masked_indices_list.append(masked_indices)
-        '''
 
         bias_sect = image.get_image_header(key='BIASSEC')
         image_data = image.get_image_data()
@@ -182,49 +161,6 @@ def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.10):
                             (value >= (pct_threshold * len(image_objects)))]
 
     return thresholded_darks_bad_pixel_list
-
-    #return combined_list_of_bad_pixels
-
-    # A 3D array, where the x-y plane is the image plane and the z axis is the number of images
-    total_image_cube = numpy.dstack(tuple(corrected_image_list))
-
-    # compute the per-pixel mean, this should be in a 2D array
-    per_pixel_mean = numpy.mean(total_image_cube, axis=2)
-
-    '''
-    per_pixel_stddev = numpy.std(per_pixel_mean)
-
-    # (scalar) median from every pixel
-    pixels_median = numpy.median(per_pixel_mean)
-
-    # any pixel that is outside of the range gets masked
-    range_start, range_end = pixels_median - (sigma_threshold * per_pixel_stddev), \
-                                pixels_median + (sigma_threshold * per_pixel_stddev)
-
-    filtered_array = numpy.ma.masked_outside(per_pixel_mean, range_start, range_end)
-
-    masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
-
-    return [tuple(coordinates) for coordinates in masked_indices.tolist()]
-    '''
-    # use the gain to compute the number of electrons per pixel: http://spiff.rit.edu/classes/phys445/lectures/gain/gain.html
-
-    '''
-    camera_gain = image.get_image_header(key='GAIN')
-
-    # Takes an array of counts/pixel and converts it to electrons/pixel
-    electron_counts_mean = numpy.multiply(per_pixel_mean, camera_gain)
-
-    # remove any pixels with an electron count of more than 10?
-    # list of pixels that were removed as a result of electron filtering.
-    electron_count_filtered_pixels = numpy.ma.masked_where(electron_counts_mean, electron_counts_mean > 10)
-
-    masked_indices = numpy.transpose(electron_count_filtered_pixels.nonzero())
-
-    pdb.set_trace()
-
-    return [tuple(coordinates) for coordinates in masked_indices.tolist()]
-    '''
 
 
 def flats_processing(image_objects, sigma_threshold=7):
@@ -315,5 +251,3 @@ def extract_center_fraction_region(original_image_data, fraction):
     extracted_image = original_image_data[new_image_y : -new_image_y, new_image_x : -new_image_x]
 
     return extracted_image
-
-
