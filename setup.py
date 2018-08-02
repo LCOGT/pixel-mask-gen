@@ -18,7 +18,7 @@ VERSION = None
 AUTHOR = 'Raleigh Littles'
 REQUIRES_PYTHON = '>=3.5'
 
-REQUIRED = ['astropy', 'numpy']
+REQUIRED = ['astropy','pyyaml']
 EXTRAS = {
 
 }
@@ -31,9 +31,6 @@ if not VERSION:
         exec(f.read(), about)
 else:
     about['__version__'] = VERSION
-
-# Import the README and use it as the long-description.
-# Note: this will only work if 'README.md' is present in your MANIFEST.in file!
 
 # Where the magic happens:
 setup(

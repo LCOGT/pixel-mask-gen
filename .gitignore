@@ -1,12 +1,16 @@
 .idea/
+.coverage
 __pycache__
 test/__pycache__
 lib64/
 lib64
 lib/
 include/
+env/
 bin/
+htmlcov/
 env/
 pip-selfcheck.json
 pyvenv.cfg
-
+documentation/_build
+documentation/_templates
