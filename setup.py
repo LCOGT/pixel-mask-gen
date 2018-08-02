@@ -3,7 +3,7 @@ import os
 import sys
 
 import logging
-import lcogt-logging
+import lcogt_logging
 
 from setuptools import find_packages, setup
 

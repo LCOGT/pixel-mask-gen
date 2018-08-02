@@ -1,15 +1,10 @@
 # External
 import astropy.io.fits
-import numpy
-import collections
 import os
-import yaml
-import time
-import datetime
 import sys
+import datetime
 import glob
-import errno
-
+import time
 import setup.LOGGER as logger
 
 # Internal
@@ -33,6 +28,9 @@ def main(source_file_path):
         raise TypeError("Empty file path given.")
 
 
+    current_time = time.time()
+
+    logger.info("Started main function")
     absolute_source_file_path = os.path.abspath(source_file_path)
 
     hdu_for_images = get_image_hdus(absolute_source_file_path)
@@ -41,6 +39,28 @@ def main(source_file_path):
     bias_hdu_objects = sort_images_by_type('bias', hdu_for_images)
     dark_hdu_objects = sort_images_by_type('dark', hdu_for_images)
     flat_hdu_objects = sort_images_by_type('flat', hdu_for_images)
+
+    bias_image_masks = image_processing.apply_bias_processing(bias_hdu_objects)
+
+    dark_image_masks = image_processing.apply_darks_processing(dark_hdu_objects)
+
+    flat_image_masks = image_processing.apply_flats_processing(flat_hdu_objects)
+
+    # once  you have the image masks, OR them together to get one mask
+
+    combined_image_mask = image_processing.combine_image_masks([bias_image_masks, dark_image_masks, flat_image_masks])
+
+    header_dict = {
+        'OBSTYPE': 'BPM',
+        'DATE': datetime.date.today().strftime('%Y-%m-%d')
+    }
+
+    astropy.io.fits.writeto('final.bpm', data=combined_image_mask, header=header_dict, output_verify='exception')
+
+    finished_time = time.time()
+
+    time_diff = round(finished_time - current_time, 3)
+    logger.info("Time elapsed: {0}".format(time_diff))
 
 
 
@@ -60,6 +80,7 @@ def get_image_hdus(absolute_path_to_images, hdu_to_retrieve=0):
     hdu_list_for_images = [(astropy.io.fits.open(fits_image, mode='readonly'))[0] for fits_image in fits_images_list]
 
     return hdu_list_for_images
+
 
 def sort_images_by_type(image_type, hdu_list):
     """

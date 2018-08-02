@@ -5,7 +5,7 @@ import astropy.stats
 import setup.LOGGER as logger
 
 
-def apply_bias_processing(hdu_objects, sigma_min=7, sigma_max=7, pct_threshold=0.30):
+def apply_bias_processing(hdu_objects, sigma_min=7, sigma_max=7):
     """**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -38,11 +38,13 @@ def apply_bias_processing(hdu_objects, sigma_min=7, sigma_max=7, pct_threshold=0
 
         list_of_masks.append(sclipped_image_as_masked_array)
 
+    filtered_masks = apply_frequency_thresholding_on_masked_arrays(list_of_masks, 0.30)
+
     logger.debug("Completed bias processing")
-    return list_of_masks
+    return filtered_masks
 
 
-def darks_processing(hdu_objects,dark_current_threshold=35):
+def apply_darks_processing(hdu_objects,dark_current_threshold=35):
     r"""**Algorithm**
 
     1. Locate the overscan region of each image, and divide the entire image by the median of the overscan region.
@@ -87,11 +89,13 @@ def darks_processing(hdu_objects,dark_current_threshold=35):
 
         list_of_masks.append(masked_image)
 
-    logger.debug("Finished darks processing.")
-    return list_of_masks
+    filtered_masks = apply_frequency_thresholding_on_masked_arrays(list_of_masks, 0.30)
+
+    logger.debug("Completed darks processing.")
+    return filtered_masks
 
 
-def flats_processing(hdu_objects, sigma_threshold=7):
+def apply_flats_processing(hdu_objects, sigma_threshold=7):
     r"""**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -113,6 +117,9 @@ def flats_processing(hdu_objects, sigma_threshold=7):
 
     :param
     """
+
+    if len(hdu_objects) < 2:
+        raise("Cannot perform flats processing on only 1 image.")
 
     logger.debug("Beginning flats processing on {0} images".format(len(hdu_objects)))
 
@@ -142,10 +149,8 @@ def flats_processing(hdu_objects, sigma_threshold=7):
 
     filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start, range_end)
 
-    list_of_masks.append(filtered_array)
-
-    logger.debug("Finished flats processing")
-    return list_of_masks
+    logger.debug("Completed flats processing")
+    return filtered_array
 
 
 # ------------------------------------------------------------
@@ -181,6 +186,17 @@ def extract_center_fraction_region(original_image_data, fraction):
 
     return extracted_image
 
+def combine_image_masks(masks_by_type):
+    """
+    Once you have all N masks, where each mask corresponds to each type (i.e. you have 1 bias mask, 1 flat mask, etc.)
+    then you can combine them to only extract
+
+    :param masks_by_type: A list of image masks (boolean arrays)
+    :return:
+    """
+
+    return numpy.logical_or.reduce(masks_by_type).astype(numpy.uint8)
+
 def extract_coordinates_from_header_string(header_string):
     """
     Utility for converting a specified string in the header into integers that can be used to slice an array.
@@ -196,3 +212,30 @@ def extract_coordinates_from_header_string(header_string):
     row_start, row_end = two_d_coordinates[1].split(':')
 
     return [row_start, row_end, col_start, col_end]
+
+
+def apply_frequency_thresholding_on_masked_arrays(list_of_arrays, frequency_threshold):
+    """
+    Takes a list of arrays and removes any values in the array don't appear more than a specified number of times.
+
+
+    :param list_of_arrays:
+    :param frequency_threshold:
+    :return:
+    """
+
+    logger.debug("Applying frequency thresholding on {0} arrays.".format(len(list_of_arrays)))
+
+    # if all arrays have the same shape as the first one then all arrays have the same shape
+
+    if not (all([array.shape == list_of_arrays[0].shape for array in list_of_arrays])):
+        raise ValueError("Not all arrays have the same shape, unable to apply frequency thresholding.")
+
+    # sum the boolean arrays all together, the value at each (row, col) tells you the number of times a bad pixel
+    # was detected there
+    all_arrays_sum = sum(list_of_arrays)
+
+    frequency_filtered_array = all_arrays_sum < (frequency_threshold * len(list_of_arrays))
+
+    return frequency_filtered_array
+
