@@ -16,29 +16,20 @@ DESCRIPTION = 'Bad pixel mask generator.'
 URL = 'https://github.com/LCOGT/pixel-mask-gen'
 EMAIL = 'rlittles@lco.global'
 VERSION = None
-
+RELEASE = None
 
 AUTHOR = 'Raleigh Littles'
 REQUIRES_PYTHON = '>=3.6'
 
-REQUIRED = ['astropy','pyyaml', 'lcogt-logging']
+REQUIRED = ['astropy','lcogt-logging', 'lcogt_logging']
 EXTRAS = {
 
 }
-
 here = os.path.abspath(os.path.dirname(__file__))
-
-about = {}
-if not VERSION:
-    with open(os.path.join(here, NAME, '__version__.py')) as f:
-        exec(f.read(), about)
-else:
-    about['__version__'] = VERSION
 
 # Where the magic happens:
 setup(
     name=NAME,
-    version=about['__version__'],
     description=DESCRIPTION,
     #long_description=long_description,
     #long_description_content_type='text/markdown',
@@ -67,22 +58,10 @@ setup(
         'Programming Language :: Python :: Implementation :: CPython',
         'Programming Language :: Python :: Implementation :: PyPy'
     ],
-    # $ setup.py publish support.
+    command_options={
+        'build_sphinx': {
+            'project': ('setup.py', NAME),
+            'version': ('setup.py', VERSION),
+            'release': ('setup.py', RELEASE),
+            'source_dir': ('setup.py', 'doc')}},
 )
-
-
-def setup_custom_logger(name='pixel-mask-gen'):
-    # Taken from: https://github.com/LCOGT/lcogt_logging/blob/master/example.py
-
-    logger = logging.getLogger(name)
-    helpful_info = {'example': True, 'pid': os.getpid()}
-    formatter = lcogt-logging.LCOGTFormatter(extra_tags=helpful_info)
-
-    stream_handler = logging.StreamHandler(sys.stdout)
-    stream_handler.setLevel(logging.DEBUG)
-    stream_handler.setFormatter(formatter)
-    logger.addHandler(stream_handler)
-    return logger
-
-global LOGGER
-LOGGER = setup_custom_logger()

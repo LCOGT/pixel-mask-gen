@@ -14,3 +14,5 @@ pyvenv.cfg
 documentation/_build
 documentation/_templates
 sample_images/
+virtual_environment/
+build/

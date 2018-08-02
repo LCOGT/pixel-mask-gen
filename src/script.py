@@ -5,13 +5,10 @@ import sys
 import datetime
 import glob
 import time
-import setup.LOGGER as logger
 
 # Internal
-import src.image_processing as image_processing
-import src.image_object as image_object
-import src.fits_utilities as fits_utilities
-
+import image_processing
+from logger import logger_obj as my_logger
 
 def main(source_file_path):
     """This function will execute when the module is run in main context.
@@ -30,15 +27,15 @@ def main(source_file_path):
 
     current_time = time.time()
 
-    logger.info("Started main function")
+    my_logger.info("Started main function")
     absolute_source_file_path = os.path.abspath(source_file_path)
 
-    hdu_for_images = get_image_hdus(absolute_source_file_path)
+    hdu_for_images = get_image_hdus(absolute_source_file_path, suffix_list=["b00", "d00", "f00"])
 
     # This is a code smell, please fix this
-    bias_hdu_objects = sort_images_by_type('bias', hdu_for_images)
-    dark_hdu_objects = sort_images_by_type('dark', hdu_for_images)
-    flat_hdu_objects = sort_images_by_type('flat', hdu_for_images)
+    bias_hdu_objects = sort_images_by_type('BIAS', hdu_for_images)
+    dark_hdu_objects = sort_images_by_type('DARK', hdu_for_images)
+    flat_hdu_objects = sort_images_by_type('SKYFLAT', hdu_for_images)
 
     bias_image_masks = image_processing.apply_bias_processing(bias_hdu_objects)
 
@@ -46,38 +43,43 @@ def main(source_file_path):
 
     flat_image_masks = image_processing.apply_flats_processing(flat_hdu_objects)
 
-    # once  you have the image masks, OR them together to get one mask
-
+    # once you have the image masks, OR them together to get one mask
     combined_image_mask = image_processing.combine_image_masks([bias_image_masks, dark_image_masks, flat_image_masks])
+
+    todays_date = datetime.date.today().strftime('%Y-%m-%d')
+    todays_time = datetime.date.today().strftime('%H-%M-%S')
 
     header_dict = {
         'OBSTYPE': 'BPM',
-        'DATE': datetime.date.today().strftime('%Y-%m-%d')
+        'DATE': todays_date,
+        'TIME': todays_time
     }
 
-    astropy.io.fits.writeto('final.bpm', data=combined_image_mask, header=header_dict, output_verify='exception')
+    # cant directly write headers as dict object to astropy, must convert to header object first
+    output_filename = os.path.join('output', "bpm-{0}-{1}.fits".format(todays_date, todays_time))
+    astropy.io.fits.writeto(filename=output_filename, data=combined_image_mask, header=astropy.io.fits.Header(header_dict))
 
     finished_time = time.time()
 
     time_diff = round(finished_time - current_time, 3)
-    logger.info("Time elapsed: {0}".format(time_diff))
+    my_logger.info("Time elapsed: {0}".format(time_diff))
 
 
-
-
-def get_image_hdus(absolute_path_to_images, hdu_to_retrieve=0):
+def get_image_hdus(absolute_path_to_images, suffix_list, hdu_index=0,):
     """
     Takes an absolute directory that contains images and converts those images to a list of header data objects.
 
     :param absolute_path_to_images:
+    :param hdu_to_retrieve: the index of the HDU you'd like. This will need to change to handle multi-extension fits files
     :return:
     """
-
-    file_wildcard_pattern = os.path.join(absolute_path_to_images, "*.fits")
+    # Uses the suffix_list to construct a regex/wildcard pattern to search for files. So if your suffix list is:
+    # a, b, c, this expression will be something like: '*[a|b|c].fits'
+    file_wildcard_pattern = os.path.join(absolute_path_to_images, "*[{0}].fits".format('|'.join(suffix_list)))
 
     fits_images_list = [os.path.abspath(path) for path in glob.glob(file_wildcard_pattern)]
 
-    hdu_list_for_images = [(astropy.io.fits.open(fits_image, mode='readonly'))[0] for fits_image in fits_images_list]
+    hdu_list_for_images = [(astropy.io.fits.open(fits_image, mode='readonly'))[hdu_index] for fits_image in fits_images_list]
 
     return hdu_list_for_images
 
@@ -93,7 +95,7 @@ def sort_images_by_type(image_type, hdu_list):
 
     desired_hdus = []
     for hdu in hdu_list:
-        if hdu.header['OBSTYPE'] == image_type:
+        if hdu.header['OBSTYPE'].strip() == image_type:
             desired_hdus.append(hdu)
 
     return desired_hdus
@@ -114,8 +116,10 @@ def generate_flattened_list(list_to_flatten):
 
 if __name__ == '__main__':
     # Run the main script
-    logger.debug("Starting main script.")
+    my_logger.debug("Starting main script.")
 
     if sys.argv[1] is None:
         raise TypeError("Missing parameter -- no directory for source images was specified.")
+
+    main(sys.argv[1])
 

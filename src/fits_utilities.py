@@ -3,7 +3,7 @@ import astropy.io.fits
 import datetime
 import os
 import numpy
-import logging
+from src import logging
 
 import pdb
 
@@ -25,7 +25,7 @@ def output_to_FITS(image_data, header_dict, filename, debug=False):
     else:
         new_hdu = astropy.io.fits.PrimaryHDU(image_data.astype(numpy.uint8))
         logging.info("Writing array of size {0} to file; array contains {1} bad pixels in mask.".format(image_data.shape,
-                                                                                                       image_data.sum()))
+                                                                                                        image_data.sum()))
         new_hdu_list = astropy.io.fits.HDUList([new_hdu])
 
     # Do you really need to set every header, or is it fine to just set the OBSTYPE header?
