@@ -11,6 +11,7 @@ import logging
 import src.image_processing as image_processing
 import src.logger as logger
 
+
 def main(source_file_path):
     r"""This function will only execute when the module is run in main context.
 
@@ -39,7 +40,8 @@ def main(source_file_path):
     my_logger.info("Started main function")
     absolute_source_file_path = os.path.abspath(source_file_path)
 
-    hdu_for_images = get_image_hdus(absolute_source_file_path, suffix_list=["b00", "d00", "f00"])
+    hdu_for_images = get_image_hdus(
+        absolute_source_file_path, suffix_list=["b00", "d00", "f00"])
 
     # This is a code smell, please fix this
     bias_hdu_objects = sort_images_by_type('BIAS', hdu_for_images)
@@ -48,16 +50,20 @@ def main(source_file_path):
 
     bias_image_masks = image_processing.apply_bias_processing(bias_hdu_objects)
 
-    dark_image_masks = image_processing.apply_darks_processing(dark_hdu_objects)
+    dark_image_masks = image_processing.apply_darks_processing(
+        dark_hdu_objects)
 
-    flat_image_masks = image_processing.apply_flats_processing(flat_hdu_objects)
+    flat_image_masks = image_processing.apply_flats_processing(
+        flat_hdu_objects)
 
     # once you have the image masks, OR them together to get one mask
-    combined_image_mask = image_processing.combine_image_masks([bias_image_masks, dark_image_masks, flat_image_masks])
+    combined_image_mask = image_processing.combine_image_masks(
+        [bias_image_masks, dark_image_masks, flat_image_masks])
 
     today = datetime.datetime.now()
     format_strings = ["%Y-%m-%d", "-%H%M%S"]
-    today_date, today_time = tuple([today.strftime(str_format) for str_format in format_strings])
+    today_date, today_time = tuple(
+        [today.strftime(str_format) for str_format in format_strings])
 
     header_dict = {
         'OBSTYPE': 'BPM',
@@ -66,8 +72,12 @@ def main(source_file_path):
     }
 
     # cant directly write headers as dict object to astropy, must convert to header object first
-    output_filename = os.path.join('output', "bpm-{0}-{1}.fits".format(today_date, today_time))
-    astropy.io.fits.writeto(filename=output_filename, data=combined_image_mask, header=astropy.io.fits.Header(header_dict))
+    output_filename = os.path.join(
+        'output', "bpm-{0}-{1}.fits".format(today_date, today_time))
+    astropy.io.fits.writeto(
+        filename=output_filename,
+        data=combined_image_mask,
+        header=astropy.io.fits.Header(header_dict))
 
     finished_time = time.time()
 
@@ -75,7 +85,11 @@ def main(source_file_path):
     my_logger.info("Time elapsed: {0}".format(time_diff))
 
 
-def get_image_hdus(absolute_path_to_images, suffix_list, hdu_index=0,):
+def get_image_hdus(
+        absolute_path_to_images,
+        suffix_list,
+        hdu_index=0,
+):
     """
     Takes an absolute directory that contains images and converts those images to a list of header data objects.
 
@@ -95,11 +109,16 @@ def get_image_hdus(absolute_path_to_images, suffix_list, hdu_index=0,):
     if len(suffix_list) == 0:
         raise ValueError("No valid list of suffixes were passed.")
 
-    file_wildcard_pattern = os.path.join(absolute_path_to_images, "*[{0}].fits".format('|'.join(suffix_list)))
+    file_wildcard_pattern = os.path.join(
+        absolute_path_to_images, "*[{0}].fits".format('|'.join(suffix_list)))
 
-    fits_images_list = [os.path.abspath(path) for path in glob.glob(file_wildcard_pattern)]
+    fits_images_list = [
+        os.path.abspath(path) for path in glob.glob(file_wildcard_pattern)
+    ]
 
-    hdu_list_for_images = [(astropy.io.fits.open(fits_image, mode='readonly'))[hdu_index] for fits_image in fits_images_list]
+    hdu_list_for_images = [(astropy.io.fits.open(fits_image,
+                                                 mode='readonly'))[hdu_index]
+                           for fits_image in fits_images_list]
 
     return hdu_list_for_images
 
@@ -135,6 +154,7 @@ def generate_flattened_list(list_to_flatten):
 
     return flattened_list
 
+
 if __name__ == '__main__':
     global my_logger
     my_logger = logger.setup_custom_logger()
@@ -143,7 +163,7 @@ if __name__ == '__main__':
     my_logger.debug("Starting main script.")
 
     if sys.argv[1] is None:
-        raise TypeError("Missing parameter. No directory for source images was specified.")
+        raise TypeError(
+            "Missing parameter. No directory for source images was specified.")
 
     main(sys.argv[1])
-

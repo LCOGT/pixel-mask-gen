@@ -13,7 +13,12 @@ except ModuleNotFoundError:
 global mad_constant
 mad_constant = 1.4826
 
-def apply_bias_processing(hdu_objects, sigma_min=7, sigma_max=7, sigma_clip_iters=None, sigma_threshold=7):
+
+def apply_bias_processing(hdu_objects,
+                          sigma_min=7,
+                          sigma_max=7,
+                          sigma_clip_iters=None,
+                          sigma_threshold=7):
     r"""**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -28,38 +33,43 @@ def apply_bias_processing(hdu_objects, sigma_min=7, sigma_max=7, sigma_clip_iter
 
     """
 
-    my_logger.debug("Beginning bias processing on {0} images".format(len(hdu_objects)))
-
+    my_logger.debug("Beginning bias processing on {0} images".format(
+        len(hdu_objects)))
 
     list_of_masks = []
 
     for hdu in hdu_objects:
-        my_logger.debug("Curent filename: {0}, Shape: {1}".format(hdu.fileinfo()['file'].name, hdu.data.shape))
+        my_logger.debug("Curent filename: {0}, Shape: {1}".format(
+            hdu.fileinfo()['file'].name, hdu.data.shape))
         image_data = hdu.data
-        center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1, 4))
+        center_quarter = extract_center_fraction_region(
+            image_data, fractions.Fraction(1, 4))
         center_quarter_median = numpy.median(center_quarter)
 
-        corrected_image = numpy.subtract( image_data, center_quarter_median)
+        corrected_image = numpy.subtract(image_data, center_quarter_median)
 
-        corrected_image_MAD = astropy.stats.median_absolute_deviation(corrected_image)
+        corrected_image_MAD = astropy.stats.median_absolute_deviation(
+            corrected_image)
 
         sigma_range_start, sigma_range_end = -1 * sigma_threshold * mad_constant * corrected_image_MAD, \
                                               1 * sigma_threshold * mad_constant * corrected_image_MAD
 
+        stddev_filtered_image = numpy.ma.masked_outside(
+            corrected_image, sigma_range_start, sigma_range_end)
 
-        stddev_filtered_image = numpy.ma.masked_outside(corrected_image, sigma_range_start, sigma_range_end)
-
-        stddev_filtered_image_as_masked_array = numpy.ma.getmaskarray(stddev_filtered_image)
+        stddev_filtered_image_as_masked_array = numpy.ma.getmaskarray(
+            stddev_filtered_image)
 
         list_of_masks.append(stddev_filtered_image_as_masked_array)
 
-    filtered_mask = apply_frequency_thresholding_on_masked_arrays(list_of_masks, 0.30)
+    filtered_mask = apply_frequency_thresholding_on_masked_arrays(
+        list_of_masks, 0.30)
 
     my_logger.debug("Completed bias processing")
     return filtered_mask
 
 
-def apply_darks_processing(hdu_objects,dark_current_threshold=35):
+def apply_darks_processing(hdu_objects, dark_current_threshold=35):
     r"""**Algorithm**
 
     1. Locate the overscan region of each image, and divide the entire image by the median of the overscan region.
@@ -75,23 +85,28 @@ def apply_darks_processing(hdu_objects,dark_current_threshold=35):
 
     """
 
-    my_logger.debug("Beginning darks processing on {0} images".format(len(hdu_objects)))
+    my_logger.debug("Beginning darks processing on {0} images".format(
+        len(hdu_objects)))
 
     list_of_masks = []
 
     for hdu in hdu_objects:
         # Divide every pixel in the image by its exposure time, then store the new 'image' in a list
-        my_logger.debug("Curent filename: {0}, Shape: {1}".format(hdu.fileinfo()['file'].name, hdu.data.shape))
+        my_logger.debug("Curent filename: {0}, Shape: {1}".format(
+            hdu.fileinfo()['file'].name, hdu.data.shape))
 
         bias_section_header_string = hdu.header['BIASSEC']
 
         image_data = hdu.data
 
-        overscan_region_coordinates = extract_coordinates_from_header_string(bias_section_header_string)
-        my_logger.debug("Overscan region as given in the header is {0}".format(overscan_region_coordinates))
+        overscan_region_coordinates = extract_coordinates_from_header_string(
+            bias_section_header_string)
+        my_logger.debug("Overscan region as given in the header is {0}".format(
+            overscan_region_coordinates))
 
-        overscan_region_data = image_data[overscan_region_coordinates[0] : overscan_region_coordinates[1],
-                                        overscan_region_coordinates[2] : overscan_region_coordinates[3]]
+        overscan_region_data = image_data[overscan_region_coordinates[
+            0]:overscan_region_coordinates[1], overscan_region_coordinates[2]:
+                                          overscan_region_coordinates[3]]
 
         cropped_image_data_median = numpy.median(overscan_region_data)
 
@@ -107,8 +122,8 @@ def apply_darks_processing(hdu_objects,dark_current_threshold=35):
 
         list_of_masks.append(masked_image)
 
-    filtered_masks = apply_frequency_thresholding_on_masked_arrays(list_of_masks, 0.30)
-
+    filtered_masks = apply_frequency_thresholding_on_masked_arrays(
+        list_of_masks, 0.30)
 
     my_logger.debug("Completed darks processing.")
     return filtered_masks
@@ -140,14 +155,17 @@ def apply_flats_processing(hdu_objects, sigma_threshold=7):
 
     """
 
-    my_logger.debug("Beginning flats processing on {0} images".format(len(hdu_objects)))
+    my_logger.debug("Beginning flats processing on {0} images".format(
+        len(hdu_objects)))
 
     corrected_images_list = []
 
     for hdu in hdu_objects:
-        my_logger.debug("Curent filename: {0}, Shape: {1}".format(hdu.fileinfo()['file'].name, hdu.data.shape))
+        my_logger.debug("Curent filename: {0}, Shape: {1}".format(
+            hdu.fileinfo()['file'].name, hdu.data.shape))
         image_data = hdu.data
-        center_quarter = extract_center_fraction_region(hdu.data, fractions.Fraction(1, 4))
+        center_quarter = extract_center_fraction_region(
+            hdu.data, fractions.Fraction(1, 4))
         center_quarter_median = numpy.median(center_quarter)
         corrected_image = image_data / center_quarter_median
         corrected_images_list.append(corrected_image)
@@ -166,7 +184,8 @@ def apply_flats_processing(hdu_objects, sigma_threshold=7):
     range_start, range_end = mad - ((mad_constant * mad ) * sigma_threshold), \
                              mad + ((mad_constant * mad) * sigma_threshold)
 
-    filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start, range_end)
+    filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start,
+                                             range_end)
 
     my_logger.debug("Completed flats processing")
     return numpy.ma.getmaskarray(filtered_array)
@@ -175,6 +194,7 @@ def apply_flats_processing(hdu_objects, sigma_threshold=7):
 # ------------------------------------------------------------
 # UTILITY FUNCTIONS
 # ------------------------------------------------------------
+
 
 def extract_center_fraction_region(original_image_data, fraction):
     r"""Extract and return the center fraction of an image
@@ -186,25 +206,29 @@ def extract_center_fraction_region(original_image_data, fraction):
 
     """
 
-    row,col = original_image_data.shape
+    row, col = original_image_data.shape
 
     if (row == 0) or (col == 0):
         raise ValueError('The array to be reduced has an invalid size.')
 
-    row_start, row_end = int(((1 - fraction) * row) / 2), int((((1-fraction) * row) / 2) + row/2)
+    row_start, row_end = int(((1 - fraction) * row) / 2), int(((
+        (1 - fraction) * row) / 2) + row / 2)
 
-    if row == col: # the image is a square
+    if row == col:  # the image is a square
         col_start, col_end = row_start, row_end
 
     else:
-        col_start, col_end = int(((1 - fraction) * col)) / 2, int((((1-fraction) * col) / 2) + col/2)
+        col_start, col_end = int(((1 - fraction) * col)) / 2, int(((
+            (1 - fraction) * col) / 2) + col / 2)
 
     new_image_x, new_image_y = original_image_data.shape[0] // fraction.denominator, \
                                original_image_data.shape[1] // fraction.denominator
 
-    extracted_image = original_image_data[new_image_y : -new_image_y, new_image_x : -new_image_x]
+    extracted_image = original_image_data[new_image_y:-new_image_y,
+                                          new_image_x:-new_image_x]
 
     return extracted_image
+
 
 def combine_image_masks(masks_by_type):
     """
@@ -216,6 +240,7 @@ def combine_image_masks(masks_by_type):
     """
 
     return numpy.logical_or.reduce(masks_by_type).astype(numpy.uint8)
+
 
 def extract_coordinates_from_header_string(header_string):
     """
@@ -232,12 +257,16 @@ def extract_coordinates_from_header_string(header_string):
     row_start, row_end = two_d_coordinates[1].split(':')
 
     # filter non-numerical values from the string
-    coordinates_as_strings = [re.sub(r"\D", "", string) for string in [row_start, row_end, col_start, col_end]]
+    coordinates_as_strings = [
+        re.sub(r"\D", "", string)
+        for string in [row_start, row_end, col_start, col_end]
+    ]
 
     return list(map(int, coordinates_as_strings))
 
 
-def apply_frequency_thresholding_on_masked_arrays(list_of_arrays, frequency_threshold):
+def apply_frequency_thresholding_on_masked_arrays(list_of_arrays,
+                                                  frequency_threshold):
     """
     Takes a list of arrays and removes any values in the array don't appear more than a specified number of times.
 
@@ -248,18 +277,22 @@ def apply_frequency_thresholding_on_masked_arrays(list_of_arrays, frequency_thre
     :rtype: numpy.ndarray
     """
 
-    my_logger.debug("Applying frequency thresholding on {0} arrays.".format(len(list_of_arrays)))
+    my_logger.debug("Applying frequency thresholding on {0} arrays.".format(
+        len(list_of_arrays)))
 
     # if all arrays have the same shape as the first one then all arrays have the same shape
 
-    if not (all([array.shape == list_of_arrays[0].shape for array in list_of_arrays])):
-        my_logger.warn("The arrays you're attempting to apply frequency thresholding to do not all have the same size.")
+    if not (all(
+        [array.shape == list_of_arrays[0].shape for array in list_of_arrays])):
+        my_logger.warn(
+            "The arrays you're attempting to apply frequency thresholding to do not all have the same size."
+        )
 
     # sum the boolean arrays all together, the value at each (row, col) tells you the number of times a bad pixel
     # was detected there
     all_arrays_sum = sum(list_of_arrays)
 
-    frequency_filtered_array = all_arrays_sum >= (frequency_threshold * len(list_of_arrays))
+    frequency_filtered_array = all_arrays_sum >= (
+        frequency_threshold * len(list_of_arrays))
 
     return frequency_filtered_array
-
