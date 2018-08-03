@@ -1,14 +1,17 @@
 import fractions
 import numpy
 import re
-import pdb
 import astropy.stats
 
-from logger import logger_obj as my_logger
+# Needed to make sphinx work, but really hacky. Please fix
+try:
+    import src.my_logger as my_logger
+except ModuleNotFoundError:
+    pass
 
 # see: https://en.wikipedia.org/wiki/Median_absolute_deviation
-global K
-K = 1.4826
+global mad_constant
+mad_constant = 1.4826
 
 def apply_bias_processing(hdu_objects, sigma_min=7, sigma_max=7, sigma_clip_iters=None, sigma_threshold=7):
     r"""**Algorithm**
@@ -40,8 +43,8 @@ def apply_bias_processing(hdu_objects, sigma_min=7, sigma_max=7, sigma_clip_iter
 
         corrected_image_MAD = astropy.stats.median_absolute_deviation(corrected_image)
 
-        sigma_range_start, sigma_range_end = -1 * sigma_threshold * K * corrected_image_MAD, \
-                                              1 * sigma_threshold * K * corrected_image_MAD
+        sigma_range_start, sigma_range_end = -1 * sigma_threshold * mad_constant * corrected_image_MAD, \
+                                              1 * sigma_threshold * mad_constant * corrected_image_MAD
 
 
         stddev_filtered_image = numpy.ma.masked_outside(corrected_image, sigma_range_start, sigma_range_end)
@@ -51,8 +54,6 @@ def apply_bias_processing(hdu_objects, sigma_min=7, sigma_max=7, sigma_clip_iter
         list_of_masks.append(stddev_filtered_image_as_masked_array)
 
     filtered_mask = apply_frequency_thresholding_on_masked_arrays(list_of_masks, 0.30)
-
-
 
     my_logger.debug("Completed bias processing")
     return filtered_mask
@@ -129,16 +130,18 @@ def apply_flats_processing(hdu_objects, sigma_threshold=7):
     Recall that
 
     .. math::
+
     \sigma = k \cdot MAD
 
-    Where for a normal distribution, :math:`k\approx 1.4826`.
+    Where for a normal distribution, :math:`k\approx 1.4826`
 
-    :param
+
+    :param hdu_objects: A list of HDU objects
+
     """
 
     my_logger.debug("Beginning flats processing on {0} images".format(len(hdu_objects)))
 
-    list_of_masks = []
     corrected_images_list = []
 
     for hdu in hdu_objects:
@@ -160,7 +163,8 @@ def apply_flats_processing(hdu_objects, sigma_threshold=7):
     mad = astropy.stats.median_absolute_deviation(std_deviations_array)
 
     # once you have the MAD, mask any values outside the range of the sigma threshold
-    range_start, range_end = mad - ((K * mad ) * sigma_threshold), mad + ((K * mad) * sigma_threshold)
+    range_start, range_end = mad - ((mad_constant * mad ) * sigma_threshold), \
+                             mad + ((mad_constant * mad) * sigma_threshold)
 
     filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start, range_end)
 
@@ -195,7 +199,8 @@ def extract_center_fraction_region(original_image_data, fraction):
     else:
         col_start, col_end = int(((1 - fraction) * col)) / 2, int((((1-fraction) * col) / 2) + col/2)
 
-    new_image_x, new_image_y = original_image_data.shape[0] // fraction.denominator, original_image_data.shape[1] // fraction.denominator
+    new_image_x, new_image_y = original_image_data.shape[0] // fraction.denominator, \
+                               original_image_data.shape[1] // fraction.denominator
 
     extracted_image = original_image_data[new_image_y : -new_image_y, new_image_x : -new_image_x]
 
@@ -207,7 +212,7 @@ def combine_image_masks(masks_by_type):
     then you can combine them to only extract
 
     :param masks_by_type: A list of image masks (boolean arrays)
-    :return:
+    :return: numpy.ndarray
     """
 
     return numpy.logical_or.reduce(masks_by_type).astype(numpy.uint8)
@@ -237,9 +242,10 @@ def apply_frequency_thresholding_on_masked_arrays(list_of_arrays, frequency_thre
     Takes a list of arrays and removes any values in the array don't appear more than a specified number of times.
 
 
-    :param list_of_arrays:
-    :param frequency_threshold:
-    :return:
+    :param list_of_arrays: A list of numpy arrays with all the same shape
+    :param frequency_threshold: A minimum frequency in the range (0, 1]
+    :return: An array where only the values that appear more than the frequency threshold are preserved
+    :rtype: numpy.ndarray
     """
 
     my_logger.debug("Applying frequency thresholding on {0} arrays.".format(len(list_of_arrays)))

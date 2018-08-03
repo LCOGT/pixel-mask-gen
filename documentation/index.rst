@@ -8,7 +8,6 @@ Code documentation
 Get information about a specific function, module, class, or see the source.
 
 .. contents::
-    :local:
 
 .. toctree::
    :maxdepth: 10
@@ -17,50 +16,14 @@ Get information about a specific function, module, class, or see the source.
    readme
    changelog
 
-===================
-Main function
-===================
-
-Documentation for the primary functions used to orchestrate the bad pixel masking code.
-
 .. automodule:: src.script
-    :members:
-    :show-inheritance:
+   :members:
 
-===============================
-Image processing documentation
-===============================
 
 Documentation for image processing functions.
 
 .. automodule:: src.image_processing
-    :members:
-    :show-inheritance:
-
-==============================
-FITS Utilities documentation
-==============================
-
-.. automodule:: src.fits_utilities
-    :members:
-    :show-inheritance:
-
-==================
-Helper classes
-==================
-
-.. autoclass:: src.image_object.ImageObject
-    :members:
-    :show-inheritance:
-
-====================
-Verification script
-====================
-
-.. automodule:: test.verification
-    :members:
-    :show-inheritance:
-
+   :members:
 
 Indices and tables
 ==================
