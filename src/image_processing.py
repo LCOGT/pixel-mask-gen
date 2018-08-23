@@ -1,57 +1,25 @@
 import fractions
-import collections
 import numpy
+import re
 import astropy.stats
-import pdb
-import logging
-import os
+
+# Needed to make sphinx work, but really hacky. Please fix
+try:
+    import src.my_logger as my_logger
+except ModuleNotFoundError:
+    pass
+
+# see: https://en.wikipedia.org/wiki/Median_absolute_deviation
+global mad_constant
+mad_constant = 1.4826
 
 
-def sigma_clip_individual(image_array, sigma_hi, sigma_low):
-    """Applies the median filter to one image, and returns back diagnostic information.
-
-    :param image_array: A numpy array that represents the FITS file image
-    :param sigma_hi: The upper limit in standard deviations to filter on
-    :param sigma_low: The lower limit in standard deviations to filter on
-    :returns mfiltered_array: a numpy array that has been median filtered (the filtered entries are masked)
-    :returns masked_indices: the coordinates (x,y) that were masked by the median filter
-    :returns percentage_mask: the percentage of pixels that were masked by the median filter
-
-    """
-
-    mfiltered_array = astropy.stats.sigma_clip(data=image_array,
-                                        sigma_lower=sigma_low,
-                                        sigma_upper=sigma_hi)
-
-    masked_indices = numpy.transpose(numpy.ma.getmask(mfiltered_array).nonzero())
-
-    percentage_masked = (len(masked_indices) / mfiltered_array.size) * 100
-
-    return (mfiltered_array, masked_indices, percentage_masked)
-
-
-def test_adjacent_pixels(bad_pixel_list):
-    """Test if adjacent pixels were marked as 'bad', this indicates some irregular activity, since the probability of \
-    this happening naturally is very low.
-
-    :param indiv_pixel_mask: A list of coordinates where each coordinate was the pixel that was marked as bad
-    :return: The number of bad pixels that were adjacent to each other
-
-    """
-    max_neighboring_bad_pixels = 0
-
-    for (row, col) in bad_pixel_list:
-        # count the number of bad pixels that are adjacent to each other -- excluding diagonal
-        adjacent_bad_pixel_count = sum((r, c) in bad_pixel_list for (r,c) in [(row,col-1), (row,col+1), (row-1, col),
-                                                                              (row+1,col)])
-        if adjacent_bad_pixel_count > max_neighboring_bad_pixels:
-            max_neighboring_bad_pixels = adjacent_bad_pixel_count
-
-    return max_neighboring_bad_pixels
-
-
-def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.30):
-    """**Algorithm**
+def apply_bias_processing(hdu_objects,
+                          sigma_min=7,
+                          sigma_max=7,
+                          sigma_clip_iters=None,
+                          sigma_threshold=7):
+    r"""**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
 
@@ -61,173 +29,107 @@ def biases_processing(image_objects, sigma_min=7, sigma_max=7, pct_threshold=0.3
     collected the list of pixels that don't pass, ensure that the same pixel appears at least 30% of the time before \
     marking it as truly 'bad'.
 
-    :param image_objects: A list of image objects
-    :param sigma_min: the lower sigma threshold to use
-    :param sigma_max: the upper sigma threshold to use
-    :return: A list of tuples where each tuple contains a pixel location that was flagged from the bias images.
-    :rtype: list
+    :param hdu_objects:
+
     """
 
-    #logging.info("Beginning processing on {0} bias images".format(len(image_objects)))
-    #script.logger.info("Beginning processing on {0} bias images".format(len(image_objects)))
+    my_logger.debug("Beginning bias processing on {0} images".format(
+        len(hdu_objects)))
 
-    corrected_images_list = []
+    list_of_masks = []
 
-    images_datas = [image.get_image_data() for image in image_objects]
-    masked_indices_list = []
-    filtered_std_deviation_list = []
-
-    for image_data in images_datas:
-        center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1, 4))
+    for hdu in hdu_objects:
+        my_logger.debug("Curent filename: {0}, Shape: {1}".format(
+            hdu.fileinfo()['file'].name, hdu.data.shape))
+        image_data = hdu.data
+        center_quarter = extract_center_fraction_region(
+            image_data, fractions.Fraction(1, 4))
         center_quarter_median = numpy.median(center_quarter)
 
         corrected_image = numpy.subtract(image_data, center_quarter_median)
 
-        corrected_images_list.append(corrected_image)
+        corrected_image_MAD = astropy.stats.median_absolute_deviation(
+            corrected_image)
 
-        sclipped_image = astropy.stats.sigma_clip(data=corrected_image, sigma_lower=sigma_min, sigma_upper=sigma_max, iters=5)
+        sigma_range_start, sigma_range_end = -1 * sigma_threshold * mad_constant * corrected_image_MAD, \
+                                              1 * sigma_threshold * mad_constant * corrected_image_MAD
 
-        masked_indices = numpy.transpose(numpy.ma.getmask(sclipped_image).nonzero())
+        stddev_filtered_image = numpy.ma.masked_outside(
+            corrected_image, sigma_range_start, sigma_range_end)
 
-        filtered_image = numpy.ma.masked_array(corrected_image, mask=numpy.logical_not(sclipped_image))
+        stddev_filtered_image_as_masked_array = numpy.ma.getmaskarray(
+            stddev_filtered_image)
 
-        masked_indices_list.append(masked_indices)
+        list_of_masks.append(stddev_filtered_image_as_masked_array)
 
-        stddev = numpy.std(filtered_image)
+    filtered_mask = apply_frequency_thresholding_on_masked_arrays(
+        list_of_masks, 0.30)
 
-        filtered_std_deviation_list.append(stddev)
-
-    # Return a flattened list containing all coordinates that failed the sigma clipping
-    combined_list_of_failed_pixels = [tuple(coords) for sublist in masked_indices_list for coords in sublist]
-
-    # the array containing the median-subtracted values that passed the image filtering. the sclipped image contains a
-    # TRUE in every pixel that was removed, but since we want the pixels that were NOT removed, we invert the mask
-
-    # once  you have the flattened list, count the frequencies of each pixel (i.e., how many times that specific pixel
-    # appears in the list. Only use pixels who appear more than 30% of the time
-    bias_bad_pixel_counter = collections.Counter(combined_list_of_failed_pixels)
-
-    thresholded_bias_bad_pixel_list = [key for (key, value) in bias_bad_pixel_counter.items() if \
-                                       (value >= (pct_threshold * len(images_datas)))]
-
-    return thresholded_bias_bad_pixel_list
+    my_logger.debug("Completed bias processing")
+    return filtered_mask
 
 
-def darks_processing(image_objects, sigma_threshold=7, pct_threshold=0.10):
+def apply_darks_processing(hdu_objects, dark_current_threshold=35):
     r"""**Algorithm**
 
-    Divide all dark images :math:`d_i` by their respective exposure time (:math:`e_i`) to get :math:`\bar{d_i}`
+    1. Locate the overscan region of each image, and divide the entire image by the median of the overscan region.
 
-    Take the average of each image on a per-pixel basis, to get :math:`\bar{p}_{i,j}`
+    2. Then, divide the exposure time of each image, to obtain the dark current, in units of electrons/second.
 
-    Set a standard deviation threshold :math:`t` and remove all pixels outside the range :math:`\bar{p}_{i,j}  \pm t`
+    3. Filter any images that have a dark current of more than 35 electrons/second.
 
-    :param image_objects:
-    :return:  A list of tuples were each tuple contains a pixel location that was flagged from the darks images.
-    :rtype: list
+    :param hdu_objects: A list of Header Data Unit objects.
+    :param dark_current_threshold: The minimum dark current (in Electrons/second) you'd like to allow in your image.
+
+    :return: A list of boolean arrays
+
     """
 
-    masked_indices_list = []
+    my_logger.debug("Beginning darks processing on {0} images".format(
+        len(hdu_objects)))
 
-    logging.info("Beginning darks processing with {0} images".format(len(image_objects)))
+    list_of_masks = []
 
-    pixels_to_consider = [(253, 615), (363, 159), (733, 801), (1836, 2389), (1109, 2900), (955, 372), (1492, 2036), (1817, 838), (1627, 1164), (435, 216), (975, 2310), (2024, 818), (475, 1861), (544, 2844), (1782, 574), (1169, 1043), (763, 2055), (616, 2279), (692, 1615), (1250, 2094), (434, 1615), (38, 220), (1981, 2837), (278, 2254), (1834, 1176), (1642, 1880), (14, 1263), (1832, 2994), (1500, 1369), (1501, 48)]
-
-    for image in image_objects:
+    for hdu in hdu_objects:
         # Divide every pixel in the image by its exposure time, then store the new 'image' in a list
-        '''
-        exposure_time = image.get_image_header(key='EXPTIME')
-        corrected_image = numpy.divide(image.get_image_data(), exposure_time)
-        corrected_image_list.append(corrected_image)
+        my_logger.debug("Curent filename: {0}, Shape: {1}".format(
+            hdu.fileinfo()['file'].name, hdu.data.shape))
 
-        # temporarily: find electrons per pixel then divide by exposure time and flag that way?
+        bias_section_header_string = hdu.header['BIASSEC']
 
-        camera_gain = image.get_image_header(key='GAIN')
+        image_data = hdu.data
 
-        electron_counts_per_second = numpy.multiply(corrected_image, camera_gain)
+        overscan_region_coordinates = extract_coordinates_from_header_string(
+            bias_section_header_string)
+        my_logger.debug("Overscan region as given in the header is {0}".format(
+            overscan_region_coordinates))
 
-        filtered_image = numpy.ma.masked_where(electron_counts_per_second, electron_counts_per_second < 10)
+        overscan_region_data = image_data[overscan_region_coordinates[
+            0]:overscan_region_coordinates[1], overscan_region_coordinates[2]:
+                                          overscan_region_coordinates[3]]
 
-        masked_indices = numpy.transpose(filtered_image.nonzero())
+        cropped_image_data_median = numpy.median(overscan_region_data)
 
-        masked_indices_list.append(masked_indices)
-        '''
+        # Cant use the -= operator with different types, or  you'll get the error message below
+        # TypeError: Cannot cast ufunc subtract output from dtype('float64') to dtype('uint16') with casting rule 'same_kind'
+        image_data = numpy.subtract(image_data, cropped_image_data_median)
 
-        bias_sect = image.get_image_header(key='BIASSEC')
-        image_data = image.get_image_data()
-        overscan_region_median = numpy.median(image_data[1:2048, 3100:3135])
-
-        image_data = numpy.subtract(image_data, overscan_region_median)
-
-        exposure_time = image.get_image_header(key='EXPTIME')
+        exposure_time = float(hdu.header['EXPTIME'])
 
         image_data /= exposure_time
 
-        filtered_image = numpy.ma.masked_less(image_data, 35)
+        masked_image = image_data > dark_current_threshold
 
-        masked_indices = numpy.transpose(filtered_image.nonzero())
+        list_of_masks.append(masked_image)
 
-        masked_indices_list.append(masked_indices)
+    filtered_masks = apply_frequency_thresholding_on_masked_arrays(
+        list_of_masks, 0.30)
 
-        for pixel in pixels_to_consider:
-            print("pixel: {0}, electrons/second: {1}".format(pixel, image_data[pixel]))
-
-
-
-    combined_list_of_bad_pixels =  [tuple(coords) for sublist in masked_indices_list for coords in sublist]
-
-    darks_bad_pixel_counter = collections.Counter(combined_list_of_bad_pixels)
-
-    thresholded_darks_bad_pixel_list = [key for (key, value) in darks_bad_pixel_counter.items() if \
-                            (value >= (pct_threshold * len(image_objects)))]
-
-    return thresholded_darks_bad_pixel_list
-
-    #return combined_list_of_bad_pixels
-
-    # A 3D array, where the x-y plane is the image plane and the z axis is the number of images
-    total_image_cube = numpy.dstack(tuple(corrected_image_list))
-
-    # compute the per-pixel mean, this should be in a 2D array
-    per_pixel_mean = numpy.mean(total_image_cube, axis=2)
-
-    '''
-    per_pixel_stddev = numpy.std(per_pixel_mean)
-
-    # (scalar) median from every pixel
-    pixels_median = numpy.median(per_pixel_mean)
-
-    # any pixel that is outside of the range gets masked
-    range_start, range_end = pixels_median - (sigma_threshold * per_pixel_stddev), \
-                                pixels_median + (sigma_threshold * per_pixel_stddev)
-
-    filtered_array = numpy.ma.masked_outside(per_pixel_mean, range_start, range_end)
-
-    masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
-
-    return [tuple(coordinates) for coordinates in masked_indices.tolist()]
-    '''
-    # use the gain to compute the number of electrons per pixel: http://spiff.rit.edu/classes/phys445/lectures/gain/gain.html
-
-    '''
-    camera_gain = image.get_image_header(key='GAIN')
-
-    # Takes an array of counts/pixel and converts it to electrons/pixel
-    electron_counts_mean = numpy.multiply(per_pixel_mean, camera_gain)
-
-    # remove any pixels with an electron count of more than 10?
-    # list of pixels that were removed as a result of electron filtering.
-    electron_count_filtered_pixels = numpy.ma.masked_where(electron_counts_mean, electron_counts_mean > 10)
-
-    masked_indices = numpy.transpose(electron_count_filtered_pixels.nonzero())
-
-    pdb.set_trace()
-
-    return [tuple(coordinates) for coordinates in masked_indices.tolist()]
-    '''
+    my_logger.debug("Completed darks processing.")
+    return filtered_masks
 
 
-def flats_processing(image_objects, sigma_threshold=7):
+def apply_flats_processing(hdu_objects, sigma_threshold=7):
     r"""**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -243,24 +145,29 @@ def flats_processing(image_objects, sigma_threshold=7):
     Recall that
 
     .. math::
+
     \sigma = k \cdot MAD
 
-    Where for a normal distribution, :math:`k\approx 1.4826`.
+    Where for a normal distribution, :math:`k\approx 1.4826`
 
-    :param image_objects: an array of image ojbects
-    :return: A list of tuples where each tuple contains a pixel location that was flagged from the flats images.
-    :rtype: list
+
+    :param hdu_objects: A list of HDU objects
+
     """
 
-    logging.info("Beginning flats processing on {0} images".format(len(image_objects)))
+    my_logger.debug("Beginning flats processing on {0} images".format(
+        len(hdu_objects)))
 
-    images_datas = [image.get_image_data() for image in image_objects]
     corrected_images_list = []
 
-    for image_data in images_datas:
-        center_quarter = extract_center_fraction_region(image_data, fractions.Fraction(1, 4))
+    for hdu in hdu_objects:
+        my_logger.debug("Curent filename: {0}, Shape: {1}".format(
+            hdu.fileinfo()['file'].name, hdu.data.shape))
+        image_data = hdu.data
+        center_quarter = extract_center_fraction_region(
+            hdu.data, fractions.Fraction(1, 4))
         center_quarter_median = numpy.median(center_quarter)
-        corrected_image = numpy.divide(image_data, center_quarter_median)
+        corrected_image = image_data / center_quarter_median
         corrected_images_list.append(corrected_image)
 
     # Create a 3D array out of all the corrected images, where (x,y) plane is the original image and the z-axis is what
@@ -273,17 +180,20 @@ def flats_processing(image_objects, sigma_threshold=7):
 
     mad = astropy.stats.median_absolute_deviation(std_deviations_array)
 
-    # once you have the MAD, mask any values outside the range of the ssigma threshold
-    k = 1.4826
-    range_start, range_end = mad - ((k * mad ) * sigma_threshold),\
-                             mad + ((k * mad) * sigma_threshold)
+    # once you have the MAD, mask any values outside the range of the sigma threshold
+    range_start, range_end = mad - ((mad_constant * mad ) * sigma_threshold), \
+                             mad + ((mad_constant * mad) * sigma_threshold)
 
-    filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start, range_end)
+    filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start,
+                                             range_end)
 
-    masked_indices = numpy.transpose(numpy.ma.getmask(filtered_array).nonzero())
+    my_logger.debug("Completed flats processing")
+    return numpy.ma.getmaskarray(filtered_array)
 
 
-    return [tuple(coordinates) for coordinates in masked_indices.tolist()]
+# ------------------------------------------------------------
+# UTILITY FUNCTIONS
+# ------------------------------------------------------------
 
 
 def extract_center_fraction_region(original_image_data, fraction):
@@ -296,24 +206,93 @@ def extract_center_fraction_region(original_image_data, fraction):
 
     """
 
-    logging.info("Beginning center fraction extraction of image with shape: {0}".format(original_image_data.shape))
-    row,col = original_image_data.shape
+    row, col = original_image_data.shape
 
     if (row == 0) or (col == 0):
         raise ValueError('The array to be reduced has an invalid size.')
 
-    row_start, row_end = int(((1 - fraction) * row) / 2), int((((1-fraction) * row) / 2) + row/2)
+    row_start, row_end = int(((1 - fraction) * row) / 2), int(((
+        (1 - fraction) * row) / 2) + row / 2)
 
-    if row == col: # the image is a square
+    if row == col:  # the image is a square
         col_start, col_end = row_start, row_end
 
     else:
-        col_start, col_end = int(((1 - fraction) * col)) / 2, int((((1-fraction) * col) / 2) + col/2)
+        col_start, col_end = int(((1 - fraction) * col)) / 2, int(((
+            (1 - fraction) * col) / 2) + col / 2)
 
-    new_image_x, new_image_y = original_image_data.shape[0] // fraction.denominator, original_image_data.shape[1] // fraction.denominator
+    new_image_x, new_image_y = original_image_data.shape[0] // fraction.denominator, \
+                               original_image_data.shape[1] // fraction.denominator
 
-    extracted_image = original_image_data[new_image_y : -new_image_y, new_image_x : -new_image_x]
+    extracted_image = original_image_data[new_image_y:-new_image_y,
+                                          new_image_x:-new_image_x]
 
     return extracted_image
 
 
+def combine_image_masks(masks_by_type):
+    """
+    Once you have all N masks, where each mask corresponds to each type (i.e. you have 1 bias mask, 1 flat mask, etc.)
+    then you can combine them to only extract
+
+    :param masks_by_type: A list of image masks (boolean arrays)
+    :return: numpy.ndarray
+    """
+
+    return numpy.logical_or.reduce(masks_by_type).astype(numpy.uint8)
+
+
+def extract_coordinates_from_header_string(header_string):
+    """
+    Utility for converting a specified string in the header into integers that can be used to slice an array.
+
+    Example:  '[3100:3135,1:2048]' --> [3100, 3135, 1, 2048]
+
+    :param header_string: A string in the form "[x:y, a:b]"
+    :return: A list of 4 integers, in the form [starting row, ending row, starting column, ending column]
+    """
+
+    two_d_coordinates = header_string.split(',')
+    col_start, col_end = two_d_coordinates[0].split(':')
+    row_start, row_end = two_d_coordinates[1].split(':')
+
+    # filter non-numerical values from the string
+    coordinates_as_strings = [
+        re.sub(r"\D", "", string)
+        for string in [row_start, row_end, col_start, col_end]
+    ]
+
+    return list(map(int, coordinates_as_strings))
+
+
+def apply_frequency_thresholding_on_masked_arrays(list_of_arrays,
+                                                  frequency_threshold):
+    """
+    Takes a list of arrays and removes any values in the array don't appear more than a specified number of times.
+
+
+    :param list_of_arrays: A list of numpy arrays with all the same shape
+    :param frequency_threshold: A minimum frequency in the range (0, 1]
+    :return: An array where only the values that appear more than the frequency threshold are preserved
+    :rtype: numpy.ndarray
+    """
+
+    my_logger.debug("Applying frequency thresholding on {0} arrays.".format(
+        len(list_of_arrays)))
+
+    # if all arrays have the same shape as the first one then all arrays have the same shape
+
+    if not (all(
+        [array.shape == list_of_arrays[0].shape for array in list_of_arrays])):
+        my_logger.warn(
+            "The arrays you're attempting to apply frequency thresholding to do not all have the same size."
+        )
+
+    # sum the boolean arrays all together, the value at each (row, col) tells you the number of times a bad pixel
+    # was detected there
+    all_arrays_sum = sum(list_of_arrays)
+
+    frequency_filtered_array = all_arrays_sum >= (
+        frequency_threshold * len(list_of_arrays))
+
+    return frequency_filtered_array

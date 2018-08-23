@@ -17,20 +17,19 @@ import os
 import numpy
 
 
-
 def read_bpms_from_files(directory):
     bpms = []
     print('Searching for FITS files in directory.')
-    for index, filename in enumerate(os.listdir(directory)):
+    for index, filename in enumerate(os.listdir(".")):
         if filename.endswith('.fits'):
             print("index:{0}, filename:{1}".format(index, filename))
-            image_file = astropy.io.fits.open(os.path.abspath(os.path.join(directory, filename)))
+            image_file = astropy.io.fits.open(filename)
             # BANZAI stores the BPM in the 2nd extension of the image
             # https://lco.global/documentation/archive-documentation/
             bpm_data = image_file[1].data
             num_of_bad_pixels = numpy.count_nonzero(bpm_data)
             pct_bad_pixels = (num_of_bad_pixels / bpm_data.size) * 100
-            print("{0} ({1} %) bad pixels detected in example mask:".format(num_of_bad_pixels, pct_bad_pixels))
+            print("{0} ({1} %) bad pixels detected:".format(num_of_bad_pixels, pct_bad_pixels))
 
             bpms.append(bpm_data)
 
@@ -48,10 +47,9 @@ def verify_bpms_are_equal(bpms):
         # Check if all possible pairs of numpy arrays are equal
         return all([numpy.array_equal(bpms[i], bpms[j]) for i in range(len(bpms)) for j in range(i+1, len(bpms))])
 
-
 if __name__ == '__main__':
     # The directory where the BANZAI-reduced images are stored
-    DEFAULT_DIRECTORY = 'example_images/'
+    DEFAULT_DIRECTORY = 'sample_images/raw/'
     bpms_from_directory = read_bpms_from_files(DEFAULT_DIRECTORY)
     if verify_bpms_are_equal(bpms_from_directory):
         print('Converting BPM to FITS file.')
