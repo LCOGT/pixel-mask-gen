@@ -16,3 +16,5 @@ documentation/_templates
 sample_images/
 virtual_environment/
 build/
+sample_images/
+output/
