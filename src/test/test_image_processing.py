@@ -3,9 +3,6 @@ import src.image_processing as image_processing
 import numpy as np
 import astropy.io.fits as fits
 import fractions #will be going away
-import logging
-
-logger = logging.getLogger(__name__)
 
 def test_apply_bias_processing():
     test_image = np.random.rand(100,100)
