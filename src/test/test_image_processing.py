@@ -40,7 +40,7 @@ def test_apply_flats_processing():
     bad_pixels = np.array([[np.random.randint(100), np.random.randint(100)] for index in range(0,10)])
     base_flat_image[tuple(bad_pixels.T)] = 22000 + 8*base_flat_std
 
-    flat_list = [fits.ImageHDU(header=hdr, data=base_flat_image * (0.9 ** index)) for index in range(1,6)]
+    flat_list = [fits.ImageHDU(header=hdr, data=base_flat_image - (1000 * index)) for index in range(1,6)]
     flat_mask = image_processing.apply_flats_processing(flat_list)
 
     assert np.shape(flat_mask) == np.shape(base_flat_image)
