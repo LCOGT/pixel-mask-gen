@@ -1,0 +1,8 @@
+[run]
+omit=
+    src/__init__.py
+    src/conftest.py
+    src/script.py
+    src/test/*
+    src/logger.py
+    src/verification.py
