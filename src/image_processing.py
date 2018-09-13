@@ -2,12 +2,9 @@ import fractions
 import numpy
 import re
 import astropy.stats
+import logging
 
-# Needed to make sphinx work, but really hacky. Please fix
-try:
-    import src.my_logger as my_logger
-except ModuleNotFoundError:
-    pass
+my_logger = logging.getLogger(__name__)
 
 # see: https://en.wikipedia.org/wiki/Median_absolute_deviation
 global mad_constant
@@ -39,8 +36,6 @@ def apply_bias_processing(hdu_objects,
     list_of_masks = []
 
     for hdu in hdu_objects:
-        my_logger.debug("Curent filename: {0}, Shape: {1}".format(
-            hdu.fileinfo()['file'].name, hdu.data.shape))
         image_data = hdu.data
         center_quarter = extract_center_fraction_region(
             image_data, fractions.Fraction(1, 4))
@@ -92,9 +87,6 @@ def apply_darks_processing(hdu_objects, dark_current_threshold=35):
 
     for hdu in hdu_objects:
         # Divide every pixel in the image by its exposure time, then store the new 'image' in a list
-        my_logger.debug("Curent filename: {0}, Shape: {1}".format(
-            hdu.fileinfo()['file'].name, hdu.data.shape))
-
         bias_section_header_string = hdu.header['BIASSEC']
 
         image_data = hdu.data
@@ -161,8 +153,6 @@ def apply_flats_processing(hdu_objects, sigma_threshold=7):
     corrected_images_list = []
 
     for hdu in hdu_objects:
-        my_logger.debug("Curent filename: {0}, Shape: {1}".format(
-            hdu.fileinfo()['file'].name, hdu.data.shape))
         image_data = hdu.data
         center_quarter = extract_center_fraction_region(
             hdu.data, fractions.Fraction(1, 4))
@@ -253,8 +243,8 @@ def extract_coordinates_from_header_string(header_string):
     """
 
     two_d_coordinates = header_string.split(',')
-    col_start, col_end = two_d_coordinates[0].split(':')
-    row_start, row_end = two_d_coordinates[1].split(':')
+    row_start, row_end = two_d_coordinates[0].split(':')
+    col_start, col_end = two_d_coordinates[1].split(':')
 
     # filter non-numerical values from the string
     coordinates_as_strings = [

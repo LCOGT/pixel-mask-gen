@@ -4,6 +4,9 @@ import astropy.io.fits as fits
 import fractions #will be going away
 
 def test_apply_bias_processing():
+    hdr = fits.Header()
+    hdr['FILE'] = 'unit_test_bias.fits'
+
     test_image = np.round(np.random.normal(1, 1, (100, 100)))
     bad_pixels = np.array([[np.random.randint(100), np.random.randint(100)] for index in range(0, 10)])
     test_image[tuple(bad_pixels.T)] = 100
@@ -17,6 +20,8 @@ def test_apply_darks_processing():
     hdr = fits.Header()
     hdr['BIASSEC'] = '[1:5, 1:5]'
     hdr['EXPTIME'] = '10'
+    hdr['FILE'] = 'unit_test_dark.fits'
+
 
     test_image = np.round(np.random.normal(30, 1, (100,100)))
     bad_pixels = np.array([[np.random.randint(100), np.random.randint(100)] for index in range(0, 10)])
@@ -31,6 +36,8 @@ def test_apply_darks_processing():
 def test_apply_flats_processing():
     hdr = fits.Header()
     hdr['FILTER'] = 'w'
+    hdr['FILE'] = 'unit_test_flat.fits'
+
 
     base_flat_image = np.random.normal(22000, 100, (100, 100))
     base_flat_std = np.std(base_flat_image)
@@ -65,10 +72,10 @@ def test_extract_coordinates_from_header_string():
     test_header_string_2 = '[3100:3135,1:2048]'
 
     assert image_processing.extract_coordinates_from_header_string(test_header_string_1) ==\
-           [slice(3100, 3135), slice(1, 2048)]
+           [3100, 3135, 1, 2048]
 
     assert image_processing.extract_coordinates_from_header_string(test_header_string_2) ==\
-           [slice(3100, 3135), slice(1, 2048)]
+           [3100, 3135, 1, 2048]
 
 def test_apply_frequency_thresholding_on_masked_arrays():
     test_array = np.array([5, 1, 2, 4]).reshape(2, 2)
