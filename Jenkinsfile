@@ -10,7 +10,7 @@ pipeline {
 		DOCKER_IMG = dockerImageName("${LCO_DOCK_REG}", "${PROJ_NAME}", "${GIT_DESCRIPTION}")
 	}
 	options {
-		timeout(time: 10, unit: 'MINUTES')
+		timeout(time: 1, unit: 'HOURS')
 	}
 	stages {
 		stage('Build image') {
