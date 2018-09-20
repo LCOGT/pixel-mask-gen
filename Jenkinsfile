@@ -30,7 +30,7 @@ pipeline {
 		stage('Unit Tests') {
 			steps {
 				script {
-					sh 'docker run --rm "${DOCKER_IMG}" --entrypoint "python setup.py test"'
+					sh 'docker run --rm --entrypoint=python "${DOCKER_IMG}" setup.py test'
 				}
 			}
 		}
