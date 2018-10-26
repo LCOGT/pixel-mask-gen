@@ -1,4 +1,3 @@
-import fractions
 import numpy
 import re
 import astropy.stats
@@ -37,8 +36,7 @@ def apply_bias_processing(hdu_objects,
 
     for hdu in hdu_objects:
         image_data = hdu.data
-        center_quarter = extract_center_fraction_region(
-            image_data, fractions.Fraction(1, 4))
+        center_quarter = extract_center_fraction_region(image_data, 0.25)
         center_quarter_median = numpy.median(center_quarter)
 
         corrected_image = numpy.subtract(image_data, center_quarter_median)
@@ -154,8 +152,7 @@ def apply_flats_processing(hdu_objects, sigma_threshold=7):
 
     for hdu in hdu_objects:
         image_data = hdu.data
-        center_quarter = extract_center_fraction_region(
-            hdu.data, fractions.Fraction(1, 4))
+        center_quarter = extract_center_fraction_region(hdu.data, 0.25)
         center_quarter_median = numpy.median(center_quarter)
         corrected_image = image_data / center_quarter_median
         corrected_images_list.append(corrected_image)
@@ -184,41 +181,20 @@ def apply_flats_processing(hdu_objects, sigma_threshold=7):
 # ------------------------------------------------------------
 # UTILITY FUNCTIONS
 # ------------------------------------------------------------
-
-
-def extract_center_fraction_region(original_image_data, fraction):
+def extract_center_fraction_region(image, inner_edge_width):
     r"""Extract and return the center fraction of an image
 
-    :param fraction: A Fraction object
-    :param original_image_data:
+    :param inner_edge_width: Size of inner edge as fraction of total image size
+    :param image: image data
     :return: The center fraction of the original image
     :rtype: numpy.ndarray
 
     """
+    ny, nx = image.shape
 
-    row, col = original_image_data.shape
-
-    if (row == 0) or (col == 0):
-        raise ValueError('The array to be reduced has an invalid size.')
-
-    row_start, row_end = int(((1 - fraction) * row) / 2), int(((
-        (1 - fraction) * row) / 2) + row / 2)
-
-    if row == col:  # the image is a square
-        col_start, col_end = row_start, row_end
-
-    else:
-        col_start, col_end = int(((1 - fraction) * col)) / 2, int(((
-            (1 - fraction) * col) / 2) + col / 2)
-
-    new_image_x, new_image_y = original_image_data.shape[0] // fraction.denominator, \
-                               original_image_data.shape[1] // fraction.denominator
-
-    extracted_image = original_image_data[new_image_y:-new_image_y,
-                                          new_image_x:-new_image_x]
-
-    return extracted_image
-
+    inner_nx = round(nx * inner_edge_width)
+    inner_ny = round(ny * inner_edge_width)
+    return image[inner_ny: -inner_ny, inner_nx: -inner_nx]
 
 def combine_image_masks(masks_by_type):
     """
@@ -231,7 +207,7 @@ def combine_image_masks(masks_by_type):
 
     return numpy.logical_or.reduce(masks_by_type).astype(numpy.uint8)
 
-
+#this is currently wrong!, also make it return a slice...
 def extract_coordinates_from_header_string(header_string):
     """
     Utility for converting a specified string in the header into integers that can be used to slice an array.

@@ -1,7 +1,6 @@
 import src.image_processing as image_processing
 import numpy as np
 import astropy.io.fits as fits
-import fractions #will be going away
 
 def test_apply_bias_processing():
     hdr = fits.Header()
@@ -50,7 +49,7 @@ def test_extract_center_fraction_region():
     test_image = np.zeros((100, 100))
     test_image[24:75, 24:75] = 1
 
-    np.testing.assert_array_equal(image_processing.extract_center_fraction_region(test_image, fractions.Fraction(1, 4)),
+    np.testing.assert_array_equal(image_processing.extract_center_fraction_region(test_image, 0.25),
                                   np.ones((50, 50)))
 
 def test_combine_image_masks():
