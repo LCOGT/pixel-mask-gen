@@ -60,15 +60,15 @@ def test_combine_image_masks():
 
     np.testing.assert_array_equal(combined_mask, np.ones((2, 2)))
 
-def test_extract_coordinates_from_header_string():
+def test_get_slices_from_image_section():
     test_header_string_1 = '[3100:3135, 1:2048]'
     test_header_string_2 = '[3100:3135,1:2048]'
 
-    assert image_processing.extract_coordinates_from_header_string(test_header_string_1) ==\
-           [3100, 3135, 1, 2048]
+    assert image_processing.get_slices_from_image_section(test_header_string_1) ==\
+           (slice(0, 2048, 1), slice(3099, 3135, 1))
 
-    assert image_processing.extract_coordinates_from_header_string(test_header_string_2) ==\
-           [3100, 3135, 1, 2048]
+    assert image_processing.get_slices_from_image_section(test_header_string_2) ==\
+           (slice(0, 2048, 1), slice(3099, 3135, 1))
 
 def test_apply_frequency_thresholding_on_masked_arrays():
     test_array = np.array([5, 1, 2, 4]).reshape(2, 2)

@@ -1,5 +1,4 @@
 import numpy
-import re
 import astropy.stats
 import logging
 
@@ -89,15 +88,11 @@ def apply_darks_processing(hdu_objects, dark_current_threshold=35):
 
         image_data = hdu.data
 
-        overscan_region_coordinates = extract_coordinates_from_header_string(
-            bias_section_header_string)
+        overscan_region_coordinates = get_slices_from_image_section(bias_section_header_string)
         my_logger.debug("Overscan region as given in the header is {0}".format(
             overscan_region_coordinates))
 
-        overscan_region_data = image_data[overscan_region_coordinates[
-            0]:overscan_region_coordinates[1], overscan_region_coordinates[2]:
-                                          overscan_region_coordinates[3]]
-
+        overscan_region_data = image_data[overscan_region_coordinates[0], overscan_region_coordinates[1]]
         cropped_image_data_median = numpy.median(overscan_region_data)
 
         # Cant use the -= operator with different types, or  you'll get the error message below
@@ -207,29 +202,42 @@ def combine_image_masks(masks_by_type):
 
     return numpy.logical_or.reduce(masks_by_type).astype(numpy.uint8)
 
-#this is currently wrong!, also make it return a slice...
-def extract_coordinates_from_header_string(header_string):
+def get_slices_from_image_section(image_section_string):
     """
-    Utility for converting a specified string in the header into integers that can be used to slice an array.
+    Borrowed from BANZAI. Convert FITS header image section value to tuple of slices.
 
-    Example:  '[3100:3135,1:2048]' --> [3100, 3135, 1, 2048]
+    Example:  '[3100:3135,1:2048]' --> (slice(0, 2048, 1), slice(3099, 3135, 1))
+    Note:
+    FITS Header image sections are 1-based and indexed by [column, row]
+    Numpy arrays are zero-based and indexed by [row, column]
 
-    :param header_string: A string in the form "[x:y, a:b]"
-    :return: A list of 4 integers, in the form [starting row, ending row, starting column, ending column]
+    :param header_string: An image section string in the form "[x1:x2, y1:y2]"
+    :return: Row-indexed tuple of slices, (row_slice, col_slice)
     """
 
-    two_d_coordinates = header_string.split(',')
-    row_start, row_end = two_d_coordinates[0].split(':')
-    col_start, col_end = two_d_coordinates[1].split(':')
+    # Strip off the brackets and split the coordinates
+    pixel_sections = image_section_string[1:-1].split(',')
+    x_slice = split_slice(pixel_sections[0])
+    y_slice = split_slice(pixel_sections[1])
+    pixel_slices = (y_slice, x_slice)
+    return pixel_slices
 
-    # filter non-numerical values from the string
-    coordinates_as_strings = [
-        re.sub(r"\D", "", string)
-        for string in [row_start, row_end, col_start, col_end]
-    ]
+def split_slice(pixel_section):
+    """
+    Borrowed from BANZAI. Convert FITS header pixel section to Numpy-friendly
+    slice.
 
-    return list(map(int, coordinates_as_strings))
-
+    Example: '3100:3135' --> slice(3099, 3135, 1)
+    """
+    pixels = pixel_section.split(':')
+    if int(pixels[1]) > int(pixels[0]):
+        pixel_slice = slice(int(pixels[0]) - 1, int(pixels[1]), 1)
+    else:
+        if int(pixels[1]) == 1:
+            pixel_slice = slice(int(pixels[0]) - 1, None, -1)
+        else:
+            pixel_slice = slice(int(pixels[0]) - 1, int(pixels[1]) - 2, -1)
+    return pixel_slice
 
 def apply_frequency_thresholding_on_masked_arrays(list_of_arrays,
                                                   frequency_threshold):
