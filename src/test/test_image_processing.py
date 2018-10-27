@@ -12,21 +12,24 @@ def test_apply_bias_processing():
     bias_mask = image_processing.apply_bias_processing([fits.ImageHDU(data=test_image)])
 
     assert np.shape(bias_mask) == np.shape(test_image)
-    np.testing.assert_array_equal((bias_mask == 1), (test_image == 100))
+    np.testing.assert_array_equal((bias_mask == True), (test_image == 100))
 
 def test_apply_darks_processing():
     hdr = fits.Header()
-    hdr['BIASSEC'] = '[1:5, 1:5]'
+    hdr['BIASSEC'] = '[95:100, 1:100]'
     hdr['EXPTIME'] = '10'
+    overscan_coords = image_processing.get_slices_from_image_section(hdr['BIASSEC'])
 
     test_image = np.round(np.random.normal(30, 1, (100,100)))
     bad_pixels = np.array([[np.random.randint(100), np.random.randint(100)] for index in range(0, 10)])
     test_image[tuple(bad_pixels.T)] = 1000
+    test_image[overscan_coords] = np.round(np.random.normal(1, 0.05))
 
     dark_mask = image_processing.apply_darks_processing([fits.ImageHDU(header=hdr, data=test_image)])
 
-    assert np.shape(dark_mask) == np.shape(test_image)
-    np.testing.assert_array_equal((dark_mask == 1), (test_image == 1000))
+    test_image_without_overscan = np.delete(test_image, overscan_coords[1], 1)
+    assert np.shape(dark_mask) == np.shape(test_image_without_overscan)
+    np.testing.assert_array_equal((dark_mask == 1), (test_image_without_overscan == 1000))
 
 def test_apply_flats_processing():
     hdr = fits.Header()

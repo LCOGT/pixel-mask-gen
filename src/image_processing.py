@@ -28,34 +28,29 @@ def apply_bias_processing(hdu_objects,
 
     """
 
-    my_logger.debug("Beginning bias processing on {0} images".format(
-        len(hdu_objects)))
+    my_logger.debug("Beginning bias processing on {0} images".format(len(hdu_objects)))
 
-    list_of_masks = []
+    masks = []
 
     for hdu in hdu_objects:
         image_data = hdu.data
         center_quarter = extract_center_fraction_region(image_data, 0.25)
         center_quarter_median = numpy.median(center_quarter)
 
-        corrected_image = numpy.subtract(image_data, center_quarter_median)
+        corrected_image = image_data - center_quarter_median
 
-        corrected_image_MAD = astropy.stats.median_absolute_deviation(
-            corrected_image)
+        corrected_image_MAD = astropy.stats.median_absolute_deviation(corrected_image)
 
-        sigma_range_start, sigma_range_end = -1 * sigma_threshold * mad_constant * corrected_image_MAD, \
-                                              1 * sigma_threshold * mad_constant * corrected_image_MAD
+        sigma_range_start = corrected_image_MAD-(sigma_threshold * mad_constant * corrected_image_MAD)
+        sigma_range_end = corrected_image_MAD+(sigma_threshold * mad_constant * corrected_image_MAD)
+        # sigma_range_end = -sigma_range_start
 
-        stddev_filtered_image = numpy.ma.masked_outside(
-            corrected_image, sigma_range_start, sigma_range_end)
+        stddev_filtered_image = (corrected_image <= sigma_range_start) | \
+                                (corrected_image >= sigma_range_end)
 
-        stddev_filtered_image_as_masked_array = numpy.ma.getmaskarray(
-            stddev_filtered_image)
+        masks.append(stddev_filtered_image)
 
-        list_of_masks.append(stddev_filtered_image_as_masked_array)
-
-    filtered_mask = apply_frequency_thresholding_on_masked_arrays(
-        list_of_masks, 0.30)
+    filtered_mask = apply_frequency_thresholding_on_masked_arrays(masks, 0.30)
 
     my_logger.debug("Completed bias processing")
     return filtered_mask
@@ -80,35 +75,25 @@ def apply_darks_processing(hdu_objects, dark_current_threshold=35):
     my_logger.debug("Beginning darks processing on {0} images".format(
         len(hdu_objects)))
 
-    list_of_masks = []
+    masks = []
 
     for hdu in hdu_objects:
-        # Divide every pixel in the image by its exposure time, then store the new 'image' in a list
         bias_section_header_string = hdu.header['BIASSEC']
-
+        exposure_time = float(hdu.header['EXPTIME'])
         image_data = hdu.data
 
         overscan_region_coordinates = get_slices_from_image_section(bias_section_header_string)
-        my_logger.debug("Overscan region as given in the header is {0}".format(
-            overscan_region_coordinates))
 
-        overscan_region_data = image_data[overscan_region_coordinates[0], overscan_region_coordinates[1]]
-        cropped_image_data_median = numpy.median(overscan_region_data)
+        overscan_region_median = numpy.median(image_data[overscan_region_coordinates])
 
-        # Cant use the -= operator with different types, or  you'll get the error message below
-        # TypeError: Cannot cast ufunc subtract output from dtype('float64') to dtype('uint16') with casting rule 'same_kind'
-        image_data = numpy.subtract(image_data, cropped_image_data_median)
-
-        exposure_time = float(hdu.header['EXPTIME'])
-
+        image_data = numpy.delete(image_data, overscan_region_coordinates[1], 1)
+        image_data -= overscan_region_median
         image_data /= exposure_time
-
         masked_image = image_data > dark_current_threshold
 
-        list_of_masks.append(masked_image)
+        masks.append(masked_image)
 
-    filtered_masks = apply_frequency_thresholding_on_masked_arrays(
-        list_of_masks, 0.30)
+    filtered_masks = apply_frequency_thresholding_on_masked_arrays(masks, 0.30)
 
     my_logger.debug("Completed darks processing.")
     return filtered_masks
@@ -162,7 +147,12 @@ def apply_flats_processing(hdu_objects, sigma_threshold=7):
 
     mad = astropy.stats.median_absolute_deviation(std_deviations_array)
 
+    # sigma_range_start = -sigma_threshold * mad_constant * corrected_image_MAD
+
     # once you have the MAD, mask any values outside the range of the sigma threshold
+    # range_start, range_end = mad - ((mad_constant * mad ) * sigma_threshold), \
+    #                          mad + ((mad_constant * mad) * sigma_threshold)
+
     range_start, range_end = mad - ((mad_constant * mad ) * sigma_threshold), \
                              mad + ((mad_constant * mad) * sigma_threshold)
 
@@ -266,7 +256,6 @@ def apply_frequency_thresholding_on_masked_arrays(list_of_arrays,
     # was detected there
     all_arrays_sum = sum(list_of_arrays)
 
-    frequency_filtered_array = all_arrays_sum >= (
-        frequency_threshold * len(list_of_arrays))
+    frequency_filtered_array = all_arrays_sum >= (frequency_threshold * len(list_of_arrays))
 
     return frequency_filtered_array
