@@ -4,10 +4,6 @@ import logging
 
 my_logger = logging.getLogger(__name__)
 
-# see: https://en.wikipedia.org/wiki/Median_absolute_deviation
-global mad_constant
-mad_constant = 1.4826
-
 
 def apply_bias_processing(bias_frames, mad_threshold=8):
     r"""**Algorithm**
@@ -32,11 +28,12 @@ def apply_bias_processing(bias_frames, mad_threshold=8):
         image_data -= overscan_median
         corrected_frames.append(image_data)
 
-    mask = flag_outliers(numpy.dstack(corrected_frames), mad_threshold)
-    return mask
+    bias_mask = flag_outliers(numpy.dstack(corrected_frames), mad_threshold)
+
+    return bias_mask
 
 
-def apply_darks_processing(hdu_objects, dark_current_threshold=35):
+def apply_darks_processing(dark_frames, dark_current_threshold=35):
     r"""**Algorithm**
 
     1. Locate the overscan region of each image, and divide the entire image by the median of the overscan region.
@@ -53,14 +50,14 @@ def apply_darks_processing(hdu_objects, dark_current_threshold=35):
     """
 
     my_logger.debug("Beginning darks processing on {0} images".format(
-        len(hdu_objects)))
+        len(dark_frames)))
 
     masks = []
 
-    for hdu in hdu_objects:
-        bias_section_header_string = hdu.header['BIASSEC']
-        exposure_time = float(hdu.header['EXPTIME'])
-        image_data = hdu.data
+    for frame in dark_frames:
+        bias_section_header_string = frame.header['BIASSEC']
+        exposure_time = float(frame.header['EXPTIME'])
+        image_data = frame.data
 
         overscan_region_coordinates = get_slices_from_image_section(bias_section_header_string)
 
@@ -77,7 +74,7 @@ def apply_darks_processing(hdu_objects, dark_current_threshold=35):
     return filtered_masks
 
 
-def apply_flats_processing(hdu_objects, mad_threshold=7):
+def apply_flats_processing(flat_frames, mad_threshold=7):
     r"""**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -103,12 +100,12 @@ def apply_flats_processing(hdu_objects, mad_threshold=7):
 
     """
 
-    corrected_images_list = []
+    corrected_frames = []
 
-    for hdu in hdu_objects:
-        image_data = hdu.data
-        overscan_coords = get_slices_from_image_section(hdu.header['BIASSEC'])
-        trimsec_coords = get_slices_from_image_section(hdu.header['TRIMSEC'])
+    for frame in flat_frames:
+        image_data = frame.data
+        overscan_coords = get_slices_from_image_section(frame.header['BIASSEC'])
+        trimsec_coords = get_slices_from_image_section(frame.header['TRIMSEC'])
 
         overscan_median = numpy.median(image_data[overscan_coords])
         image_median = numpy.median(image_data[trimsec_coords])
@@ -116,11 +113,11 @@ def apply_flats_processing(hdu_objects, mad_threshold=7):
         image_data -= overscan_median
         image_data /= image_median
 
-        corrected_images_list.append(image_data)
+        corrected_frames.append(image_data)
 
-    mask = flag_outliers(numpy.dstack(corrected_images_list), mad_threshold)
+    flat_mask = flag_outliers(numpy.dstack(corrected_frames), mad_threshold)
 
-    return mask
+    return flat_mask
 
 
 # ------------------------------------------------------------
@@ -141,8 +138,8 @@ def extract_center_fraction_region(image, inner_edge_width):
     inner_ny = round(ny * inner_edge_width)
     return image[inner_ny: -inner_ny, inner_nx: -inner_nx]
 
-def flag_outliers(stacked_data, num_mads=7):
-    mad_array = astropy.stats.median_absolute_deviation(stacked_data, axis=2)
+def flag_outliers(stacked_frames, num_mads=7):
+    mad_array = astropy.stats.median_absolute_deviation(stacked_frames, axis=2)
     mad_of_data = astropy.stats.median_absolute_deviation(mad_array)
     median = numpy.median(mad_array)
 
