@@ -9,11 +9,7 @@ global mad_constant
 mad_constant = 1.4826
 
 
-def apply_bias_processing(hdu_objects,
-                          sigma_min=7,
-                          sigma_max=7,
-                          sigma_clip_iters=None,
-                          sigma_threshold=7):
+def apply_bias_processing(bias_frames, mad_threshold=8):
     r"""**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -27,33 +23,17 @@ def apply_bias_processing(hdu_objects,
     :param hdu_objects:
 
     """
+    corrected_frames = []
 
-    my_logger.debug("Beginning bias processing on {0} images".format(len(hdu_objects)))
+    for frame in bias_frames:
+        image_data = frame.data
+        overscan_coords = get_slices_from_image_section(frame.header['BIASSEC'])
+        overscan_median = numpy.median(image_data[overscan_coords])
+        image_data -= overscan_median
+        corrected_frames.append(image_data)
 
-    masks = []
-
-    for hdu in hdu_objects:
-        image_data = hdu.data
-        center_quarter = extract_center_fraction_region(image_data, 0.25)
-        center_quarter_median = numpy.median(center_quarter)
-
-        corrected_image = image_data - center_quarter_median
-
-        corrected_image_MAD = astropy.stats.median_absolute_deviation(corrected_image)
-
-        sigma_range_start = corrected_image_MAD-(sigma_threshold * mad_constant * corrected_image_MAD)
-        sigma_range_end = corrected_image_MAD+(sigma_threshold * mad_constant * corrected_image_MAD)
-        # sigma_range_end = -sigma_range_start
-
-        stddev_filtered_image = (corrected_image <= sigma_range_start) | \
-                                (corrected_image >= sigma_range_end)
-
-        masks.append(stddev_filtered_image)
-
-    filtered_mask = apply_frequency_thresholding_on_masked_arrays(masks, 0.30)
-
-    my_logger.debug("Completed bias processing")
-    return filtered_mask
+    mask = flag_outliers(numpy.dstack(corrected_frames), mad_threshold)
+    return mask
 
 
 def apply_darks_processing(hdu_objects, dark_current_threshold=35):
@@ -86,7 +66,6 @@ def apply_darks_processing(hdu_objects, dark_current_threshold=35):
 
         overscan_region_median = numpy.median(image_data[overscan_region_coordinates])
 
-        image_data = numpy.delete(image_data, overscan_region_coordinates[1], 1)
         image_data -= overscan_region_median
         image_data /= exposure_time
         masked_image = image_data > dark_current_threshold
@@ -95,11 +74,10 @@ def apply_darks_processing(hdu_objects, dark_current_threshold=35):
 
     filtered_masks = apply_frequency_thresholding_on_masked_arrays(masks, 0.30)
 
-    my_logger.debug("Completed darks processing.")
     return filtered_masks
 
 
-def apply_flats_processing(hdu_objects, sigma_threshold=7):
+def apply_flats_processing(hdu_objects, mad_threshold=7):
     r"""**Algorithm**
 
     Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
@@ -125,42 +103,24 @@ def apply_flats_processing(hdu_objects, sigma_threshold=7):
 
     """
 
-    my_logger.debug("Beginning flats processing on {0} images".format(
-        len(hdu_objects)))
-
     corrected_images_list = []
 
     for hdu in hdu_objects:
         image_data = hdu.data
-        center_quarter = extract_center_fraction_region(hdu.data, 0.25)
-        center_quarter_median = numpy.median(center_quarter)
-        corrected_image = image_data / center_quarter_median
-        corrected_images_list.append(corrected_image)
+        overscan_coords = get_slices_from_image_section(hdu.header['BIASSEC'])
+        trimsec_coords = get_slices_from_image_section(hdu.header['TRIMSEC'])
 
-    # Create a 3D array out of all the corrected images, where (x,y) plane is the original image and the z-axis is what
-    # connects the images
-    corrected_images_cube = numpy.dstack(tuple(corrected_images_list))
+        overscan_median = numpy.median(image_data[overscan_coords])
+        image_median = numpy.median(image_data[trimsec_coords])
 
-    # Take the standard deviation of each pixel across all images
-    # remember that axes are 0-indexed
-    std_deviations_array = numpy.std(corrected_images_cube, axis=2)
+        image_data -= overscan_median
+        image_data /= image_median
 
-    mad = astropy.stats.median_absolute_deviation(std_deviations_array)
+        corrected_images_list.append(image_data)
 
-    # sigma_range_start = -sigma_threshold * mad_constant * corrected_image_MAD
+    mask = flag_outliers(numpy.dstack(corrected_images_list), mad_threshold)
 
-    # once you have the MAD, mask any values outside the range of the sigma threshold
-    # range_start, range_end = mad - ((mad_constant * mad ) * sigma_threshold), \
-    #                          mad + ((mad_constant * mad) * sigma_threshold)
-
-    range_start, range_end = mad - ((mad_constant * mad ) * sigma_threshold), \
-                             mad + ((mad_constant * mad) * sigma_threshold)
-
-    filtered_array = numpy.ma.masked_outside(std_deviations_array, range_start,
-                                             range_end)
-
-    my_logger.debug("Completed flats processing")
-    return numpy.ma.getmaskarray(filtered_array)
+    return mask
 
 
 # ------------------------------------------------------------
@@ -180,6 +140,15 @@ def extract_center_fraction_region(image, inner_edge_width):
     inner_nx = round(nx * inner_edge_width)
     inner_ny = round(ny * inner_edge_width)
     return image[inner_ny: -inner_ny, inner_nx: -inner_nx]
+
+def flag_outliers(stacked_data, num_mads=7):
+    mad_array = astropy.stats.median_absolute_deviation(stacked_data, axis=2)
+    mad_of_data = astropy.stats.median_absolute_deviation(mad_array)
+    median = numpy.median(mad_array)
+
+    outlier_mask = numpy.logical_or(mad_array <= median - (num_mads * mad_of_data),
+                                    mad_array >= median + (num_mads * mad_of_data))
+    return outlier_mask
 
 def combine_image_masks(masks_by_type):
     """
