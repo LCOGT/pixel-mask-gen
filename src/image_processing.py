@@ -73,6 +73,7 @@ def mask_outliers(stacked_frames, num_mads=7):
 
     outlier_mask = np.logical_or(mad_array < median_of_data - (num_mads * mad_of_data),
                                  mad_array > median_of_data + (num_mads * mad_of_data))
+                                 
     return outlier_mask
 
 

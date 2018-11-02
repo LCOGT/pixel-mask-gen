@@ -42,7 +42,6 @@ def test_process_flat_frames():
     assert set(bad_pixel_locations[0]) == set(flagged_pixels[0])
     assert set(bad_pixel_locations[1]) == set(flagged_pixels[1])
 
-
 def test_get_slices_from_image_section():
     test_header_string_1 = '[3100:3135, 1:2048]'
     test_header_string_2 = '[3100:3135,1:2048]'
@@ -54,11 +53,10 @@ def test_get_slices_from_image_section():
            (slice(0, 2048, 1), slice(3099, 3135, 1))
 
 def test_process_flat_frames_different_filters_raises_exception():
-    hdr_1 = fits.Header([('FILTER', 'w')])
-    hdr_2 = fits.Header([('FILTER', 'Air')])
+    headers = [fits.Header([('FILTER', 'w')]),
+               fits.Header([('FILTER', 'Air')])]
 
-    frame_1 = fits.ImageHDU(header=hdr_1)
-    frame_2 = fits.ImageHDU(header=hdr_2)
+    frames = [fits.ImageHDU(header=header) for header in headers]
 
     with pytest.raises(ValueError):
-        image_processing.process_flat_frames([frame_1, frame_2])
+        image_processing.process_flat_frames(frames)
