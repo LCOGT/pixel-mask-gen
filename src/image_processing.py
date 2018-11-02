@@ -5,27 +5,16 @@ import logging
 my_logger = logging.getLogger(__name__)
 
 
-def apply_bias_processing(bias_frames, mad_threshold=8):
-    r"""**Algorithm**
-
-    Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
-
-    Subtract every pixel in the median by :math:`m`.\
-
-    Then perform the sigma clipping algorithm on the resulting pixels, and flag any that do not pass. Once you've\
-    collected the list of pixels that don't pass, ensure that the same pixel appears at least 30% of the time before \
-    marking it as truly 'bad'.
-
-    :param hdu_objects:
-
-    """
+def process_bias_frames(bias_frames, mad_threshold=8):
     corrected_frames = []
 
     for frame in bias_frames:
         image_data = frame.data
         overscan_coords = get_slices_from_image_section(frame.header['BIASSEC'])
+
         overscan_median = numpy.median(image_data[overscan_coords])
         image_data -= overscan_median
+
         corrected_frames.append(image_data)
 
     bias_mask = flag_outliers(numpy.dstack(corrected_frames), mad_threshold)
@@ -33,25 +22,7 @@ def apply_bias_processing(bias_frames, mad_threshold=8):
     return bias_mask
 
 
-def apply_darks_processing(dark_frames, dark_current_threshold=35):
-    r"""**Algorithm**
-
-    1. Locate the overscan region of each image, and divide the entire image by the median of the overscan region.
-
-    2. Then, divide the exposure time of each image, to obtain the dark current, in units of electrons/second.
-
-    3. Filter any images that have a dark current of more than 35 electrons/second.
-
-    :param hdu_objects: A list of Header Data Unit objects.
-    :param dark_current_threshold: The minimum dark current (in Electrons/second) you'd like to allow in your image.
-
-    :return: A list of boolean arrays
-
-    """
-
-    my_logger.debug("Beginning darks processing on {0} images".format(
-        len(dark_frames)))
-
+def process_dark_frames(dark_frames, dark_current_threshold=35):
     masks = []
 
     for frame in dark_frames:
@@ -74,32 +45,8 @@ def apply_darks_processing(dark_frames, dark_current_threshold=35):
     return filtered_masks
 
 
-def apply_flats_processing(flat_frames, mad_threshold=7):
-    r"""**Algorithm**
-
-    Compute the center quarter of the image, and then compute the median :math:`m` of the center quarter.
-
-    Divide  every pixel in the image by :math:`m`.
-
-    Store the data for each corresponding pixel in an array :math:`A_{i,j}`, and compute the standard deviation of the array,\
-    for each value of :math:`i` and :math:`j`, and store this as :math:`\sigma_{A_{i,j}}`
-
-    Take the median absolute deviation of all :math:`\sigma_{A_{i,j}}`, and flag any pixel location whose value is not within\
-    :math:`s` standard deviations of the median.
-
-    Recall that
-
-    .. math::
-
-    \sigma = k \cdot MAD
-
-    Where for a normal distribution, :math:`k\approx 1.4826`
-
-
-    :param hdu_objects: A list of HDU objects
-
-    """
-
+def process_flat_frames(flat_frames, mad_threshold=7):
+    
     corrected_frames = []
 
     for frame in flat_frames:

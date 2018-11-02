@@ -3,18 +3,18 @@ import numpy as np
 import astropy.io.fits as fits
 import astropy.stats
 
-def test_apply_bias_processing():
+def test_process_bias_frames():
     bad_pixel_locations = generate_bad_pixel_locations(94, 100, 10)
     bias_frames = [generate_test_bias_frame(bad_pixel_locations) for index in range(0,10)]
 
-    bias_mask = image_processing.apply_bias_processing(bias_frames, mad_threshold=8)
+    bias_mask = image_processing.process_bias_frames(bias_frames, mad_threshold=8)
     flagged_pixels = np.where(bias_mask == True)
 
     assert np.shape(bias_mask) == np.shape(bias_frames[0].data)
     assert set(bad_pixel_locations[0]) == set(flagged_pixels[0])
     assert set(bad_pixel_locations[1]) == set(flagged_pixels[1])
 
-def test_apply_darks_processing():
+def test_process_dark_frames():
     hdr = fits.Header()
     hdr['BIASSEC'] = '[1:5, 1:5]'
     hdr['EXPTIME'] = '10'
@@ -23,12 +23,12 @@ def test_apply_darks_processing():
     bad_pixels = np.array([[np.random.randint(100), np.random.randint(100)] for index in range(0, 10)])
     test_image[tuple(bad_pixels.T)] = 100
 
-    dark_mask = image_processing.apply_darks_processing([fits.ImageHDU(header=hdr, data=test_image)])
+    dark_mask = image_processing.process_dark_frames([fits.ImageHDU(header=hdr, data=test_image)])
 
     assert np.shape(dark_mask) == np.shape(test_image)
     np.testing.assert_array_equal((dark_mask == 1), (test_image == 100))
 
-def test_apply_flats_processing():
+def test_process_flat_frames():
     hdr = fits.Header()
     hdr['FILTER'] = 'w'
     hdr['BIASSEC'] = '[95:100, 1:100]'
@@ -42,7 +42,7 @@ def test_apply_flats_processing():
                                             base_image_mean - 2000*index,
                                             base_image_std - 50*index) for index in range(0,10)]
 
-    flat_mask = image_processing.apply_flats_processing(flat_frames, mad_threshold=8)
+    flat_mask = image_processing.process_flat_frames(flat_frames, mad_threshold=8)
     flagged_pixels = np.where(flat_mask == True)
 
     assert np.shape(flat_mask) == np.shape(flat_frames[0].data)
