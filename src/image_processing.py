@@ -30,8 +30,12 @@ def process_dark_frames(dark_frames, dark_current_threshold=35):
 
     return np.mean(np.dstack(corrected_frames), axis=2) > dark_current_threshold
 
-
 def process_flat_frames(flat_frames, mad_threshold=7):
+    filters = set([frame.header['FILTER'] for frame in flat_frames])
+
+    if (len(filters) != 1):
+        raise ValueError("Flat frames are not of the same filter")
+
     corrected_frames = []
 
     for frame in flat_frames:
@@ -67,8 +71,8 @@ def mask_outliers(stacked_frames, num_mads=7):
     mad_of_data = astropy.stats.median_absolute_deviation(mad_array)
     median_of_data = np.median(mad_array)
 
-    outlier_mask = np.logical_or(mad_array <= median_of_data - (num_mads * mad_of_data),
-                                 mad_array >= median_of_data + (num_mads * mad_of_data))
+    outlier_mask = np.logical_or(mad_array < median_of_data - (num_mads * mad_of_data),
+                                 mad_array > median_of_data + (num_mads * mad_of_data))
     return outlier_mask
 
 
