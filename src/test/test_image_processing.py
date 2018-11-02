@@ -15,18 +15,15 @@ def test_process_bias_frames():
     assert set(bad_pixel_locations[1]) == set(flagged_pixels[1])
 
 def test_process_dark_frames():
-    hdr = fits.Header()
-    hdr['BIASSEC'] = '[1:5, 1:5]'
-    hdr['EXPTIME'] = '10'
+    bad_pixel_locations = generate_bad_pixel_locations(94, 100, 10)
+    dark_frames = [generate_test_dark_frame(bad_pixel_locations) for index in range(0,10)]
 
-    test_image = np.round(np.random.normal(30, 1, (100,100)))
-    bad_pixels = np.array([[np.random.randint(100), np.random.randint(100)] for index in range(0, 10)])
-    test_image[tuple(bad_pixels.T)] = 100
+    dark_mask = image_processing.process_dark_frames(dark_frames)
+    flagged_pixels = np.where(dark_mask==True)
 
-    dark_mask = image_processing.process_dark_frames([fits.ImageHDU(header=hdr, data=test_image)])
-
-    assert np.shape(dark_mask) == np.shape(test_image)
-    np.testing.assert_array_equal((dark_mask == 1), (test_image == 100))
+    assert np.shape(dark_mask) == np.shape(dark_frames[0].data)
+    assert set(flagged_pixels[0]) == set(bad_pixel_locations[0])
+    assert set(flagged_pixels[1]) == set(bad_pixel_locations[1])
 
 def test_process_flat_frames():
     hdr = fits.Header()
@@ -50,21 +47,6 @@ def test_process_flat_frames():
     assert set(bad_pixel_locations[1]) == set(flagged_pixels[1])
 
 
-def test_extract_center_fraction_region():
-    test_image = np.zeros((100, 100))
-    test_image[24:75, 24:75] = 1
-
-    np.testing.assert_array_equal(image_processing.extract_center_fraction_region(test_image, 0.25),
-                                  np.ones((50, 50)))
-
-def test_combine_image_masks():
-    mask_1 = np.array([1, 0, 0, 1]).reshape(2, 2)
-    mask_2 = np.array([0, 1, 1, 0]).reshape(2, 2)
-
-    combined_mask = image_processing.combine_image_masks([mask_1, mask_2])
-
-    np.testing.assert_array_equal(combined_mask, np.ones((2, 2)))
-
 def test_get_slices_from_image_section():
     test_header_string_1 = '[3100:3135, 1:2048]'
     test_header_string_2 = '[3100:3135,1:2048]'
@@ -75,13 +57,7 @@ def test_get_slices_from_image_section():
     assert image_processing.get_slices_from_image_section(test_header_string_2) ==\
            (slice(0, 2048, 1), slice(3099, 3135, 1))
 
-def test_apply_frequency_thresholding_on_masked_arrays():
-    test_array = np.array([5, 1, 2, 4]).reshape(2, 2)
 
-    np.testing.assert_array_equal(image_processing.apply_frequency_thresholding_on_masked_arrays([test_array], 3),
-                          np.array([True, False, False, True]).reshape(2, 2))
-
-#TODO: Find clean way to consolidate these frame generation methods into one
 def generate_test_bias_frame(bad_pixel_locations):
     hdr = fits.Header()
     hdr['BIASSEC'] = '[95:100, 1:100]'
@@ -107,6 +83,18 @@ def generate_test_flat_frame(bad_pixel_locations, image_mean, image_std):
     flat_frame[overscan_slices] = np.round(np.random.normal(1000, 50))
 
     return fits.ImageHDU(data=flat_frame, header=hdr)
+
+def generate_test_dark_frame(bad_pixel_locations):
+    hdr = fits.Header()
+    hdr['BIASSEC'] = '[95:100, 1:100]'
+    hdr['EXPTIME'] = '10.0'
+
+    overscan_region_coordinates = image_processing.get_slices_from_image_section(hdr['BIASSEC'])
+
+    dark_frame = np.round(np.random.normal(30, 5, (100,100)))
+    dark_frame[bad_pixel_locations] = 500
+
+    return fits.ImageHDU(data=dark_frame, header=hdr)
 
 def generate_bad_pixel_locations(x_limit, y_limit, num_pixels):
     bad_pixels_y = np.array([np.random.randint(y_limit) for index in range(0, num_pixels)])
