@@ -6,7 +6,7 @@ def process_bias_frames(bias_frames, mad_threshold=8):
 
     for frame in bias_frames:
         image_data = frame.data
-        overscan_coords = get_slices_from_image_section(frame.header['BIASSEC'])
+        overscan_coords = get_slices_from_header_section(frame.header['BIASSEC'])
 
         overscan_median = np.median(image_data[overscan_coords])
         image_data -= overscan_median
@@ -20,7 +20,7 @@ def process_dark_frames(dark_frames, dark_current_threshold=35):
 
     for frame in dark_frames:
         image_data = frame.data
-        overscan_region_coordinates = get_slices_from_image_section(frame.header['BIASSEC'])
+        overscan_region_coordinates = get_slices_from_header_section(frame.header['BIASSEC'])
 
         overscan_median = np.median(image_data[overscan_region_coordinates])
         image_data -= overscan_median
@@ -40,8 +40,8 @@ def process_flat_frames(flat_frames, mad_threshold=7):
 
     for frame in flat_frames:
         image_data = frame.data
-        overscan_coords = get_slices_from_image_section(frame.header['BIASSEC'])
-        trimsec_coords = get_slices_from_image_section(frame.header['TRIMSEC'])
+        overscan_coords = get_slices_from_header_section(frame.header['BIASSEC'])
+        trimsec_coords = get_slices_from_header_section(frame.header['TRIMSEC'])
 
         overscan_median = np.median(image_data[overscan_coords])
         image_median = np.median(image_data[trimsec_coords])
@@ -73,11 +73,11 @@ def mask_outliers(stacked_frames, num_mads=7):
 
     outlier_mask = np.logical_or(mad_array < median_of_data - (num_mads * mad_of_data),
                                  mad_array > median_of_data + (num_mads * mad_of_data))
-                                 
+
     return outlier_mask
 
 
-def get_slices_from_image_section(image_section_string):
+def get_slices_from_header_section(header_section_string):
     """
     Borrowed from BANZAI. Convert FITS header image section value to tuple of slices.
 
@@ -91,7 +91,7 @@ def get_slices_from_image_section(image_section_string):
     """
 
     # Strip off the brackets and split the coordinates
-    pixel_sections = image_section_string[1:-1].split(',')
+    pixel_sections = header_section_string[1:-1].split(',')
     x_slice = split_slice(pixel_sections[0])
     y_slice = split_slice(pixel_sections[1])
     pixel_slices = (y_slice, x_slice)

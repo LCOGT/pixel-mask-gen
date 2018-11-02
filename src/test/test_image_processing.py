@@ -42,14 +42,14 @@ def test_process_flat_frames():
     assert set(bad_pixel_locations[0]) == set(flagged_pixels[0])
     assert set(bad_pixel_locations[1]) == set(flagged_pixels[1])
 
-def test_get_slices_from_image_section():
+def test_get_slices_from_header_section():
     test_header_string_1 = '[3100:3135, 1:2048]'
     test_header_string_2 = '[3100:3135,1:2048]'
 
-    assert image_processing.get_slices_from_image_section(test_header_string_1) ==\
+    assert image_processing.get_slices_from_header_section(test_header_string_1) ==\
            (slice(0, 2048, 1), slice(3099, 3135, 1))
 
-    assert image_processing.get_slices_from_image_section(test_header_string_2) ==\
+    assert image_processing.get_slices_from_header_section(test_header_string_2) ==\
            (slice(0, 2048, 1), slice(3099, 3135, 1))
 
 def test_process_flat_frames_different_filters_raises_exception():
