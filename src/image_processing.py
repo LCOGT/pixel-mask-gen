@@ -6,9 +6,9 @@ def process_bias_frames(bias_frames, mad_threshold=8):
 
     for frame in bias_frames:
         image_data = frame.data
-        overscan_coords = get_slices_from_header_section(frame.header['BIASSEC'])
+        overscan_section = get_slices_from_header_section(frame.header['BIASSEC'])
 
-        overscan_median = np.median(image_data[overscan_coords])
+        overscan_median = np.median(image_data[overscan_section])
         image_data -= overscan_median
 
         corrected_frames.append(image_data)
@@ -20,9 +20,9 @@ def process_dark_frames(dark_frames, dark_current_threshold=35):
 
     for frame in dark_frames:
         image_data = frame.data
-        overscan_region_coordinates = get_slices_from_header_section(frame.header['BIASSEC'])
+        overscan_section = get_slices_from_header_section(frame.header['BIASSEC'])
 
-        overscan_median = np.median(image_data[overscan_region_coordinates])
+        overscan_median = np.median(image_data[overscan_section])
         image_data -= overscan_median
         image_data /= float(frame.header['EXPTIME'])
 
@@ -40,11 +40,11 @@ def process_flat_frames(flat_frames, mad_threshold=7):
 
     for frame in flat_frames:
         image_data = frame.data
-        overscan_coords = get_slices_from_header_section(frame.header['BIASSEC'])
-        trimsec_coords = get_slices_from_header_section(frame.header['TRIMSEC'])
+        overscan_section = get_slices_from_header_section(frame.header['BIASSEC'])
+        trimsec_section = get_slices_from_header_section(frame.header['TRIMSEC'])
 
-        overscan_median = np.median(image_data[overscan_coords])
-        image_median = np.median(image_data[trimsec_coords])
+        overscan_median = np.median(image_data[overscan_section])
+        image_median = np.median(image_data[trimsec_section])
 
         image_data -= overscan_median
         image_data /= image_median
@@ -61,18 +61,18 @@ def mask_outliers(stacked_frames, num_mads=7):
     """
     Mask pixels outside a specified number of median absolute deviations
 
-    Generate MAD for each pixel - 2D array - mad_array
-    Generate MAD of all pixel MADs - Scalar - mad_of_data
-    Generate median of all pixels MADs - Scalar - median_of_data
+    Generate MAD for each pixel - 2D array - pixel_mads
+    Generate MAD of all pixel MADs - Scalar - mad_all_pixels
+    Generate median of all pixels MADs - Scalar - median_all_pixels
 
-    Flag any pixels whose MAD is outside the median +/- num_mads * mad_of_data
+    Flag any pixels whose MAD is outside the median +/- num_mads * mad_all_pixels
     """
-    mad_array = astropy.stats.median_absolute_deviation(stacked_frames, axis=2)
-    mad_of_data = astropy.stats.median_absolute_deviation(mad_array)
-    median_of_data = np.median(mad_array)
+    pixel_mads = astropy.stats.median_absolute_deviation(stacked_frames, axis=2)
+    mad_all_pixels = astropy.stats.median_absolute_deviation(pixel_mads)
+    median_all_pixels = np.median(pixel_mads)
 
-    outlier_mask = np.logical_or(mad_array < median_of_data - (num_mads * mad_of_data),
-                                 mad_array > median_of_data + (num_mads * mad_of_data))
+    outlier_mask = np.logical_or(pixel_mads < median_all_pixels - (num_mads * mad_all_pixels),
+                                 pixel_mads > median_all_pixels + (num_mads * mad_all_pixels))
 
     return outlier_mask
 
