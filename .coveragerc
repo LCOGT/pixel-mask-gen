@@ -2,7 +2,7 @@
 omit=
     bpm/__init__.py
     bpm/conftest.py
-    bpm/script.py
+    bpm/generate_mask.py
     bpm/test/*
     bpm/logger.py
     bpm/verification.py
