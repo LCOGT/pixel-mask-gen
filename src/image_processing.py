@@ -1,21 +1,21 @@
 import numpy as np
 import astropy.stats
 
-def process_bias_frames(bias_frames, mad_threshold=8):
+def process_bias_frames(bias_frames, mask_threshold=11):
     corrected_frames = []
 
     for frame in bias_frames:
         image_data = frame.data
         overscan_section = get_slices_from_header_section(frame.header['BIASSEC'])
 
-        overscan_median = np.median(image_data[overscan_section])
-        image_data -= overscan_median
+        image_data -= np.median(image_data[overscan_section])
 
         corrected_frames.append(image_data)
 
-    return mask_outliers(np.dstack(corrected_frames), mad_threshold)
+    return mask_outliers(np.dstack(corrected_frames), mask_threshold)
 
-def process_dark_frames(dark_frames, dark_current_threshold=35):
+
+def process_dark_frames(dark_frames, dark_current_threshold=35, mask_threshold=10):
     corrected_frames = []
 
     for frame in dark_frames:
@@ -28,9 +28,13 @@ def process_dark_frames(dark_frames, dark_current_threshold=35):
 
         corrected_frames.append(image_data)
 
-    return np.mean(np.dstack(corrected_frames), axis=2) > dark_current_threshold
+    dark_current_mask = np.mean(np.dstack(corrected_frames), axis=2) > dark_current_threshold
+    outlier_mask = mask_outliers(np.dstack(corrected_frames), mask_threshold)
+    
+    return np.logical_or(dark_current_mask, outlier_mask)
 
-def process_flat_frames(flat_frames, mad_threshold=7):
+
+def process_flat_frames(flat_frames, mask_threshold=11):
     filters = set([frame.header['FILTER'] for frame in flat_frames])
 
     if (len(filters) != 1):
@@ -51,28 +55,31 @@ def process_flat_frames(flat_frames, mad_threshold=7):
 
         corrected_frames.append(image_data)
 
-    return mask_outliers(np.dstack(corrected_frames), mad_threshold)
+    return mask_outliers(np.dstack(corrected_frames), mask_threshold)
 
 # ------------------------------------------------------------
 # UTILITY FUNCTIONS
 # ------------------------------------------------------------
 
-def mask_outliers(stacked_frames, num_mads=7):
+def mask_outliers(stacked_frames, mask_threshold=10):
     """
-    Mask pixels outside a specified number of median absolute deviations
+    Mask pixels outside a specified number of standard deviations
 
     Generate MAD for each pixel - 2D array - pixel_mads
-    Generate MAD of all pixel MADs - Scalar - mad_all_pixels
+    Generate standard deviation of all pixel MADs - Scalar - std_all_pixels
     Generate median of all pixels MADs - Scalar - median_all_pixels
 
-    Flag any pixels whose MAD is outside the median +/- num_mads * mad_all_pixels
+    Flag any pixels whose std value is outside the median +/- mask_threshold * std_all_pixels
+
+    :param stacked_frames: stack of corrected frames
+    :param mask_threshold: standard deviation threshold
     """
     pixel_mads = astropy.stats.median_absolute_deviation(stacked_frames, axis=2)
-    mad_all_pixels = astropy.stats.median_absolute_deviation(pixel_mads)
+    std_all_pixels = np.std(pixel_mads)
     median_all_pixels = np.median(pixel_mads)
 
-    outlier_mask = np.logical_or(pixel_mads < median_all_pixels - (num_mads * mad_all_pixels),
-                                 pixel_mads > median_all_pixels + (num_mads * mad_all_pixels))
+    outlier_mask = np.logical_or(pixel_mads < median_all_pixels - (mask_threshold * std_all_pixels),
+                                 pixel_mads > median_all_pixels + (mask_threshold * std_all_pixels))
 
     return outlier_mask
 
@@ -96,6 +103,7 @@ def get_slices_from_header_section(header_section_string):
     y_slice = split_slice(pixel_sections[1])
     pixel_slices = (y_slice, x_slice)
     return pixel_slices
+
 
 def split_slice(pixel_section):
     """
