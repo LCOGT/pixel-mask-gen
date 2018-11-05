@@ -30,14 +30,14 @@ def process_dark_frames(dark_frames, dark_current_threshold=35, mask_threshold=1
 
     dark_current_mask = np.mean(np.dstack(corrected_frames), axis=2) > dark_current_threshold
     outlier_mask = mask_outliers(np.dstack(corrected_frames), mask_threshold)
-    
+
     return np.logical_or(dark_current_mask, outlier_mask)
 
 
 def process_flat_frames(flat_frames, mask_threshold=11):
     filters = set([frame.header['FILTER'] for frame in flat_frames])
 
-    if (len(filters) != 1):
+    if len(filters) != 1:
         raise ValueError("Flat frames are not of the same filter")
 
     corrected_frames = []
