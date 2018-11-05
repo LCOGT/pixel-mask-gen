@@ -6,4 +6,4 @@ COPY . /lco/automated-bad-pixel-mask
 
 RUN python setup.py install
 
-ENTRYPOINT ["python", "bpm/generate_mask.py"]
+ENTRYPOINT ["python", "bpm/generate_bpm.py"]
