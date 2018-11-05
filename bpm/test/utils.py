@@ -1,6 +1,6 @@
 import astropy.io.fits as fits
 import numpy as np
-import src.image_processing as image_processing
+import bpm.image_processing as image_processing
 
 def generate_test_bias_frame(bad_pixel_locations):
     hdr = fits.Header([('BIASSEC', '[95:100, 1:100]')])

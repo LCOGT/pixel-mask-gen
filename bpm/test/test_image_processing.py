@@ -1,8 +1,8 @@
 import numpy as np
 import astropy.io.fits as fits
 import pytest
-import src.image_processing as image_processing
-import src.test.utils as test_utils
+import bpm.image_processing as image_processing
+import bpm.test.utils as test_utils
 
 def test_process_bias_frames():
     bad_pixel_locations = test_utils.generate_bad_pixel_locations(94, 100, 10)

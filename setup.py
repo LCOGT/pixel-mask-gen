@@ -1,6 +1,6 @@
 from setuptools import setup, find_packages
 
-setup(name='automated-pixel-mask-generation',
+setup(name='lco-bpm-maker',
       author=['Curtis McCully', 'Raleigh Littles', 'Matt Daily'],
       version='0.1.0',
       packages=find_packages(),
