@@ -1,8 +1,8 @@
 [run]
 omit=
-    src/__init__.py
-    src/conftest.py
-    src/script.py
-    src/test/*
-    src/logger.py
-    src/verification.py
+    bpm/__init__.py
+    bpm/conftest.py
+    bpm/generate_bpm.py
+    bpm/test/*
+    bpm/logger.py
+    bpm/verification.py
