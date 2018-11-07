@@ -31,7 +31,7 @@ def generate_test_dark_frame(bad_pixel_locations):
                        ('EXPTIME', '10.0')])
 
     dark_frame = np.round(np.random.normal(30, 5, (100,100)))
-    dark_frame[bad_pixel_locations] = 500
+    dark_frame[bad_pixel_locations] = 1000
 
     return fits.ImageHDU(data=dark_frame, header=hdr)
 

@@ -15,7 +15,7 @@ def process_bias_frames(bias_frames, mask_threshold=11):
     return mask_outliers(np.dstack(corrected_frames), mask_threshold)
 
 
-def process_dark_frames(dark_frames, dark_current_threshold=35, mask_threshold=5):
+def process_dark_frames(dark_frames, dark_current_threshold=35, mask_threshold=10):
     corrected_frames = []
 
     for frame in dark_frames:
