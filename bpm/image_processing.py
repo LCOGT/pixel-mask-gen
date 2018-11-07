@@ -5,7 +5,7 @@ def process_bias_frames(bias_frames, mask_threshold=11):
     corrected_frames = []
 
     for frame in bias_frames:
-        image_data = frame.data
+        image_data = np.float64(frame.data)
         overscan_section = get_slices_from_header_section(frame.header['BIASSEC'])
 
         image_data -= np.median(image_data[overscan_section])
@@ -19,7 +19,7 @@ def process_dark_frames(dark_frames, dark_current_threshold=35, mask_threshold=1
     corrected_frames = []
 
     for frame in dark_frames:
-        image_data = frame.data
+        image_data = np.float64(frame.data)
         overscan_section = get_slices_from_header_section(frame.header['BIASSEC'])
 
         image_data -= np.median(image_data[overscan_section])
@@ -42,7 +42,7 @@ def process_flat_frames(flat_frames, mask_threshold=11):
     corrected_frames = []
 
     for frame in flat_frames:
-        image_data = frame.data
+        image_data = np.float64(frame.data)
         overscan_section = get_slices_from_header_section(frame.header['BIASSEC'])
         trimsec_section = get_slices_from_header_section(frame.header['TRIMSEC'])
 
