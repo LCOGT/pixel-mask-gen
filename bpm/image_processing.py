@@ -5,33 +5,34 @@ def process_bias_frames(bias_frames, mask_threshold=11):
     corrected_frames = []
 
     for frame in bias_frames:
-        image_data = np.float64(frame.data)
+        image_data = np.float32(frame.data)
         overscan_section = get_slices_from_header_section(frame.header['BIASSEC'])
+        trimsec_section = get_slices_from_header_section(frame.header['TRIMSEC'])
 
         image_data -= np.median(image_data[overscan_section])
 
-        corrected_frames.append(image_data)
+        corrected_frames.append(image_data[trimsec_section])
 
     return mask_outliers(np.dstack(corrected_frames), mask_threshold)
 
 
-def process_dark_frames(dark_frames, dark_current_threshold=35, mask_threshold=10):
+def process_dark_frames(dark_frames, dark_current_threshold=37, mask_threshold=37):
     corrected_frames = []
 
     for frame in dark_frames:
-        image_data = np.float64(frame.data)
+        image_data = np.float32(frame.data)
         overscan_section = get_slices_from_header_section(frame.header['BIASSEC'])
+        trimsec_section = get_slices_from_header_section(frame.header['TRIMSEC'])
 
         image_data -= np.median(image_data[overscan_section])
-        image_data /= float(frame.header['EXPTIME'])
+        image_data /= np.float32(frame.header['EXPTIME'])
 
-        corrected_frames.append(image_data)
+        corrected_frames.append(image_data[trimsec_section])
 
-    dark_current_mask = np.mean(np.dstack(corrected_frames), axis=2) > dark_current_threshold
+    dark_current_mask = np.uint8(np.mean(np.dstack(corrected_frames), axis=2) > dark_current_threshold)
     outlier_mask = mask_outliers(np.dstack(corrected_frames), mask_threshold)
 
     return np.logical_or(dark_current_mask, outlier_mask)
-
 
 def process_flat_frames(flat_frames, mask_threshold=11):
     filters = set([frame.header['FILTER'] for frame in flat_frames])
@@ -42,14 +43,14 @@ def process_flat_frames(flat_frames, mask_threshold=11):
     corrected_frames = []
 
     for frame in flat_frames:
-        image_data = np.float64(frame.data)
+        image_data = np.float32(frame.data)
         overscan_section = get_slices_from_header_section(frame.header['BIASSEC'])
         trimsec_section = get_slices_from_header_section(frame.header['TRIMSEC'])
 
         image_data -= np.median(image_data[overscan_section])
         image_data /= np.median(image_data[trimsec_section])
 
-        corrected_frames.append(image_data)
+        corrected_frames.append(image_data[trimsec_section])
 
     return mask_outliers(np.dstack(corrected_frames), mask_threshold)
 
@@ -77,7 +78,7 @@ def mask_outliers(stacked_frames, mask_threshold=10):
     outlier_mask = np.logical_or(pixel_mads < median_all_pixels - (mask_threshold * std_all_pixels),
                                  pixel_mads > median_all_pixels + (mask_threshold * std_all_pixels))
 
-    return outlier_mask
+    return np.uint8(outlier_mask)
 
 
 def get_slices_from_header_section(header_section_string):

@@ -12,6 +12,7 @@ import numpy as np
 
 logger = logging.getLogger('generate-bpm')
 
+
 def setup_logging(log_level):
     logger.setLevel(log_level)
     handler = logging.StreamHandler()
@@ -50,7 +51,7 @@ def generate_bpm():
                    'TIME': today.strftime("-%H%M%S")}
 
     output_filename = os.path.join(args.output_directory, "bpm-{0}-{1}.fits".format(today_date, today_time))
-    fits.writeto(filename=output_filename, data=combined_mask.astype(int), header = fits.Header(header_info))
+    fits.writeto(filename=output_filename, data=combined_mask.astype(np.uint8), header = fits.Header(header_info))
 
 
 def get_calibration_frames(path_to_frames, calibration_types=['d00', 'f00', 'b00']):
