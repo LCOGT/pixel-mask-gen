@@ -1,7 +1,7 @@
 import numpy as np
 import astropy.stats
 
-def process_bias_frames(bias_frames, mask_threshold=11):
+def process_bias_frames(bias_frames, mask_threshold=10):
     corrected_frames = []
 
     for frame in bias_frames:
@@ -16,7 +16,7 @@ def process_bias_frames(bias_frames, mask_threshold=11):
     return mask_outliers(np.dstack(corrected_frames), mask_threshold)
 
 
-def process_dark_frames(dark_frames, dark_current_threshold=37, mask_threshold=37):
+def process_dark_frames(dark_frames, dark_current_threshold=35):
     corrected_frames = []
 
     for frame in dark_frames:
@@ -29,12 +29,10 @@ def process_dark_frames(dark_frames, dark_current_threshold=37, mask_threshold=3
 
         corrected_frames.append(image_data[trimsec_section])
 
-    dark_current_mask = np.uint8(np.mean(np.dstack(corrected_frames), axis=2) > dark_current_threshold)
-    outlier_mask = mask_outliers(np.dstack(corrected_frames), mask_threshold)
+    return np.uint8(np.median(np.dstack(corrected_frames), axis=2) > dark_current_threshold)
 
-    return np.logical_or(dark_current_mask, outlier_mask)
 
-def process_flat_frames(flat_frames, mask_threshold=11):
+def process_flat_frames(flat_frames, mask_threshold=10):
     filters = set([frame.header['FILTER'] for frame in flat_frames])
 
     if len(filters) != 1:
