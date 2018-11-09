@@ -3,7 +3,8 @@ import numpy as np
 import bpm.image_processing as image_processing
 
 def generate_test_bias_frame(bad_pixel_locations):
-    hdr = fits.Header([('BIASSEC', '[95:100, 1:100]')])
+    hdr = fits.Header([('BIASSEC', '[95:100, 1:100]'),
+                       ('TRIMSEC', '[1:94, 1:100]')])
 
     overscan_slices = image_processing.get_slices_from_header_section(hdr['BIASSEC'])
 
@@ -28,6 +29,7 @@ def generate_test_flat_frame(bad_pixel_locations, image_mean, image_std):
 
 def generate_test_dark_frame(bad_pixel_locations):
     hdr = fits.Header([('BIASSEC', '[95:100, 1:100]'),
+                       ('TRIMSEC', '[1:94, 1:100]'),
                        ('EXPTIME', '10.0')])
 
     dark_frame = np.round(np.random.normal(30, 5, (100,100)))
