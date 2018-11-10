@@ -2,6 +2,10 @@ import numpy as np
 import astropy.stats
 
 def process_bias_frames(bias_frames, mask_threshold=10):
+
+    if len(bias_frames) < 3:
+        raise ValueError("Number of bias frames to process is less than 3.")
+
     corrected_frames = []
 
     for frame in bias_frames:
@@ -17,6 +21,10 @@ def process_bias_frames(bias_frames, mask_threshold=10):
 
 
 def process_dark_frames(dark_frames, dark_current_threshold=35):
+
+    if len(dark_frames) < 3:
+        raise ValueError("Number of dark frames to process is less than 3.")
+
     corrected_frames = []
 
     for frame in dark_frames:
@@ -33,10 +41,9 @@ def process_dark_frames(dark_frames, dark_current_threshold=35):
 
 
 def process_flat_frames(flat_frames, mask_threshold=10):
-    filters = set([frame.header['FILTER'] for frame in flat_frames])
 
-    if len(filters) != 1:
-        raise ValueError("Flat frames are not of the same filter")
+    if len(flat_frames) < 3:
+        raise ValueError("Number of flat frames to process is less than 3.")
 
     corrected_frames = []
 

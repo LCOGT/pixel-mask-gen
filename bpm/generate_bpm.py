@@ -21,37 +21,59 @@ def setup_logging(log_level):
     logger.addHandler(handler)
 
 
-def generate_bpm():
+def parse_args():
     parser = argparse.ArgumentParser(description='Create a bad pixel mask from a set of calibration frames.')
-    parser.add_argument('--input-directory', dest='input_directory', required=True, help='Input directory of calibration images')
-    parser.add_argument('--output-directory', dest='output_directory', required=True, help='Output directory for bad pixel mask')
-    parser.add_argument('--log-level', dest='log_level', default='INFO', help='Logging level',
+    parser.add_argument('input_directory', help='Input directory of calibration images')
+    parser.add_argument('output_directory', help='Output directory for bad pixel mask')
+    parser.add_argument('--log-level', dest='log_level', default='INFO', help='Logging level to be displayed',
                         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'])
+    parser.add_argument('--dark-current-threshold', dest='dark_current_threshold',
+                        help='Threshold for pixel dark current when flagging bad pixels in dark frames. Pixels above this will be flagged. Default = 35 [electrons/second]',
+                        default=35)
+    parser.add_argument('--flat-sigma-threshold', dest='flat_sigma_threshold',
+                        help='Number of standard deviations from the median of the combined flat image for a pixel to be flagged. Default = 10',
+                        default=10)
+    parser.add_argument('--bias-sigma-threshold', dest='bias_sigma_threshold',
+                        help='Number of standard deviations from the median of the combined bias image for a pixel to be flagged. Default = 10',
+                        default=10)
 
     args = parser.parse_args()
+
+    return args
+
+
+def generate_bpm():
+    args = parse_args()
     setup_logging(getattr(logging, args.log_level))
 
     calibration_frames = get_calibration_frames(os.path.normpath(args.input_directory) + '/*.fits')
 
-    dark_mask = image_processing.process_dark_frames(get_frames_of_type(calibration_frames, 'DARK'))
-    bias_mask = image_processing.process_bias_frames(get_frames_of_type(calibration_frames, 'BIAS'))
+    if len(set([frame.header['INSTRUME'] for frame in calibration_frames])) != 1:
+        raise RuntimeError("Got calibration frames from more than one camera. Aborting.")
+
+    logger.info("Processing {num_frames} calibration frames.".format(num_frames = len(calibration_frames)))
+    
+    dark_mask = image_processing.process_dark_frames(get_frames_of_type(calibration_frames, 'DARK'), args.dark_current_threshold)
+    bias_mask = image_processing.process_bias_frames(get_frames_of_type(calibration_frames, 'BIAS'), args.bias_sigma_threshold)
 
     flats_sorted = sort_flats_by_filter((get_frames_of_type(calibration_frames, 'FLAT')))
-    flat_masks = [image_processing.process_flat_frames(flats_sorted[filter]) for filter in flats_sorted.keys()]
+    flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], args.flat_sigma_threshold) for filter in flats_sorted.keys()]
 
     flat_masks.extend([bias_mask, dark_mask])
     combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
 
-    today = datetime.datetime.now()
-    format_strings = ["%Y-%m-%d", "-%H%M%S"]
-    today_date, today_time = tuple([today.strftime(str_format) for str_format in format_strings])
+    today_date = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+    instrument_code = calibration_frames[0].header['INSTRUME']
+    header_info = {'OBSTYPE': 'BPM'}
 
-    header_info = {'OBSTYPE': 'BPM',
-                   'DATE': today.strftime("%Y-%m-%d"),
-                   'TIME': today.strftime("-%H%M%S")}
+    output_filename = os.path.join(args.output_directory, "bpm-{instrument}-{today}.fits".format(today=today_date,
+                                                                                                 instrument=instrument_code))
+    fits.writeto(filename=output_filename,
+                 data=combined_mask.astype(np.uint8),
+                 header=fits.Header(header_info),
+                 checksum=True)
 
-    output_filename = os.path.join(args.output_directory, "bpm-{0}-{1}.fits".format(today_date, today_time))
-    fits.writeto(filename=output_filename, data=combined_mask.astype(np.uint8), header = fits.Header(header_info))
+    logger.info("Finished processing. BPM written to {file_path}".format(file_path=output_filename))
 
 
 def get_calibration_frames(path_to_frames, calibration_types=['d00', 'f00', 'b00']):
