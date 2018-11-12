@@ -2,8 +2,13 @@
 Python utility to generate a bad pixel mask from a set of calibration images.
 
 ## Installation
-To install the tool, run:
+### From PyPi
+This package is available via PyPi, and can be installed via pip:
+`pip3 install lco-bpm-maker`
 
+### From Github
+To install the tool, clone this repository and run;
+`cd pixel-mask-gen`
 `python3 setup.py install`
 
 ## Tests
