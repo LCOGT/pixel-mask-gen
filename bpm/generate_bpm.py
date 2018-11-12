@@ -1,9 +1,7 @@
 import astropy.io.fits as fits
 import os
-import sys
 import datetime
 import glob
-import time
 import logging
 import lcogt_logging
 import argparse
@@ -30,10 +28,10 @@ def parse_args():
                         help='Threshold for pixel dark current when flagging bad pixels in dark frames. Pixels above this will be flagged. Default = 35 [electrons/second]',
                         default=35)
     parser.add_argument('--flat-sigma-threshold', dest='flat_sigma_threshold',
-                        help='Number of standard deviations from the median of the combined flat image for a pixel to be flagged. Default = 10',
+                        help='Number of standard deviations from the median of the combined flat image for a pixel to be flagged as bad. Default = 10',
                         default=10)
     parser.add_argument('--bias-sigma-threshold', dest='bias_sigma_threshold',
-                        help='Number of standard deviations from the median of the combined bias image for a pixel to be flagged. Default = 10',
+                        help='Number of standard deviations from the median of the combined bias image for a pixel to be flagged as bad. Default = 10',
                         default=10)
 
     args = parser.parse_args()
