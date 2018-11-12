@@ -14,14 +14,14 @@ To run the unit tests, simply run:
 ## Usage
 Once you've installed the tool, it can be run simply by:
 
-`generate_bpm`
+`lco_bpm_maker`
 
 ```
-usage: generate_bpm [-h] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
-                    [--dark-current-threshold DARK_CURRENT_THRESHOLD]
-                    [--flat-sigma-threshold FLAT_SIGMA_THRESHOLD]
-                    [--bias-sigma-threshold BIAS_SIGMA_THRESHOLD]
-                    input_directory output_directory
+usage: lco_bpm_maker [-h] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
+                     [--dark-current-threshold DARK_CURRENT_THRESHOLD]
+                     [--flat-sigma-threshold FLAT_SIGMA_THRESHOLD]
+                     [--bias-sigma-threshold BIAS_SIGMA_THRESHOLD]
+                     input_directory output_directory
 
 Create a bad pixel mask from a set of calibration frames.
 
