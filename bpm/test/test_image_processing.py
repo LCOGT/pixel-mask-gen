@@ -58,13 +58,3 @@ def test_get_slices_from_header_section():
 
     assert image_processing.get_slices_from_header_section(test_header_string_2) ==\
            (slice(0, 2048, 1), slice(3099, 3135, 1))
-
-
-def test_process_flat_frames_different_filters_raises_exception():
-    headers = [fits.Header([('FILTER', 'w')]),
-               fits.Header([('FILTER', 'Air')])]
-
-    frames = [fits.ImageHDU(header=header) for header in headers]
-
-    with pytest.raises(ValueError):
-        image_processing.process_flat_frames(frames)

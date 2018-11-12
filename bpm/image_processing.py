@@ -1,11 +1,12 @@
 import numpy as np
 import astropy.stats
+import logging
+
+logger = logging.getLogger('lco-bpm-maker')
 
 def process_bias_frames(bias_frames, mask_threshold=10):
 
-    if len(bias_frames) < 3:
-        raise ValueError("Number of bias frames to process is less than 3.")
-
+    logger.info("Processing {num_frames} bias frames".format(num_frames=len(bias_frames)))
     corrected_frames = []
 
     for frame in bias_frames:
@@ -22,9 +23,7 @@ def process_bias_frames(bias_frames, mask_threshold=10):
 
 def process_dark_frames(dark_frames, dark_current_threshold=35):
 
-    if len(dark_frames) < 3:
-        raise ValueError("Number of dark frames to process is less than 3.")
-
+    logger.info("Processing {num_frames} dark frames".format(num_frames=len(dark_frames)))
     corrected_frames = []
 
     for frame in dark_frames:
@@ -42,9 +41,8 @@ def process_dark_frames(dark_frames, dark_current_threshold=35):
 
 def process_flat_frames(flat_frames, mask_threshold=10):
 
-    if len(flat_frames) < 3:
-        raise ValueError("Number of flat frames to process is less than 3.")
-
+    logger.info("Processing {num_frames} flat frames taken with filter: {filter}".format(num_frames=len(flat_frames),
+                                                                                         filter=flat_frames[0].header['FILTER']))
     corrected_frames = []
 
     for frame in flat_frames:

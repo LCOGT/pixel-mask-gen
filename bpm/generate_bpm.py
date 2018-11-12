@@ -10,8 +10,7 @@ import argparse
 import bpm.image_processing as image_processing
 import numpy as np
 
-logger = logging.getLogger('generate-bpm')
-
+logger = logging.getLogger('lco-bpm-maker')
 
 def setup_logging(log_level):
     logger.setLevel(log_level)
@@ -48,32 +47,35 @@ def generate_bpm():
 
     calibration_frames = get_calibration_frames(os.path.normpath(args.input_directory) + '/*.fits')
 
-    if len(set([frame.header['INSTRUME'] for frame in calibration_frames])) != 1:
-        raise RuntimeError("Got calibration frames from more than one camera. Aborting.")
+    if calibration_frames:
+        if len(set([frame.header['INSTRUME'] for frame in calibration_frames])) != 1:
+            raise RuntimeError("Got calibration frames from more than one camera. Aborting.")
 
-    logger.info("Processing {num_frames} calibration frames.".format(num_frames = len(calibration_frames)))
-    
-    dark_mask = image_processing.process_dark_frames(get_frames_of_type(calibration_frames, 'DARK'), args.dark_current_threshold)
-    bias_mask = image_processing.process_bias_frames(get_frames_of_type(calibration_frames, 'BIAS'), args.bias_sigma_threshold)
+        logger.info("Found {num_frames} calibration frames to process".format(num_frames = len(calibration_frames)))
 
-    flats_sorted = sort_flats_by_filter((get_frames_of_type(calibration_frames, 'FLAT')))
-    flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], args.flat_sigma_threshold) for filter in flats_sorted.keys()]
+        dark_mask = image_processing.process_dark_frames(get_frames_of_type(calibration_frames, 'DARK'), args.dark_current_threshold)
+        bias_mask = image_processing.process_bias_frames(get_frames_of_type(calibration_frames, 'BIAS'), args.bias_sigma_threshold)
 
-    flat_masks.extend([bias_mask, dark_mask])
-    combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
+        flats_sorted = sort_flats_by_filter((get_frames_of_type(calibration_frames, 'FLAT')))
+        flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], args.flat_sigma_threshold) for filter in flats_sorted.keys()]
 
-    today_date = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
-    instrument_code = calibration_frames[0].header['INSTRUME']
-    header_info = {'OBSTYPE': 'BPM'}
+        flat_masks.extend([bias_mask, dark_mask])
+        combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
 
-    output_filename = os.path.join(args.output_directory, "bpm-{instrument}-{today}.fits".format(today=today_date,
-                                                                                                 instrument=instrument_code))
-    fits.writeto(filename=output_filename,
-                 data=combined_mask.astype(np.uint8),
-                 header=fits.Header(header_info),
-                 checksum=True)
+        today_date = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        instrument_code = calibration_frames[0].header['INSTRUME']
+        header_info = {'OBSTYPE': 'BPM'}
 
-    logger.info("Finished processing. BPM written to {file_path}".format(file_path=output_filename))
+        output_filename = os.path.join(args.output_directory, "bpm-{instrument}-{today}.fits".format(today=today_date,
+                                                                                                     instrument=instrument_code))
+        fits.writeto(filename=output_filename,
+                     data=combined_mask.astype(np.uint8),
+                     header=fits.Header(header_info),
+                     checksum=True)
+
+        logger.info("Finished processing. BPM written to {file_path}".format(file_path=output_filename))
+    else:
+        raise RuntimeError("No calibration frames could be found. Check that the directory contains calibration frames.")
 
 
 def get_calibration_frames(path_to_frames, calibration_types=['d00', 'f00', 'b00']):
