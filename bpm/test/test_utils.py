@@ -1,12 +1,13 @@
 import astropy.io.fits as fits
 import numpy as np
 import bpm.image_processing as image_processing
+import bpm.image_utils as image_utils
 
 def generate_test_bias_frame(bad_pixel_locations):
     hdr = fits.Header([('BIASSEC', '[95:100, 1:100]'),
                        ('TRIMSEC', '[1:94, 1:100]')])
 
-    overscan_slices = image_processing.get_slices_from_header_section(hdr['BIASSEC'])
+    overscan_slices = image_utils.get_slices_from_header_section(hdr['BIASSEC'])
 
     bias_frame = np.round(np.random.normal(1000, 50, (100, 100)))
     bias_frame[bad_pixel_locations] = np.random.normal(5000, 3000)
@@ -19,7 +20,7 @@ def generate_test_flat_frame(bad_pixel_locations, image_mean, image_std):
                        ('BIASSEC', '[95:100, 1:100]'),
                        ('TRIMSEC', '[1:94, 1:100]')])
 
-    overscan_slices = image_processing.get_slices_from_header_section(hdr['BIASSEC'])
+    overscan_slices = image_utils.get_slices_from_header_section(hdr['BIASSEC'])
 
     flat_frame = np.round(np.random.normal(image_mean, image_std, (100,100)))
     flat_frame[bad_pixel_locations] = np.round(np.random.normal(image_mean, 20*image_std))
