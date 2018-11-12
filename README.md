@@ -1,42 +1,51 @@
-
-# Project README
-
-A Python script to generate bad pixel masks for a set of calibration images.
-
-Full documentation is available at: `documentation/_build/html/index.html`
+# pixel-mask-gen
+Python utility to generate a bad pixel mask from a set of calibration images.
 
 ## Installation
+To install the tool, run:
 
-#### Run
-Run:
-```bash
-$ python3 setup.py build
-$ python3 setup.py install
+`python3 setup.py install`
+
+## Tests
+To run the unit tests, simply run:
+
+`python3 setup.py test`
+
+## Usage
+Once you've installed the tool, it can be run simply by:
+
+`generate_bpm`
+
 ```
+usage: generate_bpm [-h] [--log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}]
+                    [--dark-current-threshold DARK_CURRENT_THRESHOLD]
+                    [--flat-sigma-threshold FLAT_SIGMA_THRESHOLD]
+                    [--bias-sigma-threshold BIAS_SIGMA_THRESHOLD]
+                    input_directory output_directory
 
-to build and install the project.
+Create a bad pixel mask from a set of calibration frames.
 
-##### Development
-For development, you way to use the `development`
-option install of `build`.
+positional arguments:
+  input_directory       Input directory of calibration images
 
-Also, you may want to set up a virtual environment:
-```bash
-$ python3 -m virtualenv -p python3.6 virtual_environment
+  output_directory      Output directory for bad pixel mask
+
+optional arguments:
+  -h, --help            show this help message and exit
+
+  --log-level {DEBUG,INFO,WARNING,ERROR,CRITICAL}
+                        Logging level to be displayed
+
+  --dark-current-threshold DARK_CURRENT_THRESHOLD
+                        Threshold for pixel dark current when flagging bad
+                        pixels in dark frames. Pixels above this will be
+                        flagged. Default = 35 [electrons/second]
+
+  --flat-sigma-threshold FLAT_SIGMA_THRESHOLD
+                        Number of standard deviations from the median of the
+                        combined flat image for a pixel to be flagged. Default = 10
+
+  --bias-sigma-threshold BIAS_SIGMA_THRESHOLD
+                        Number of standard deviations from the median of the
+                        combined bias image for a pixel to be flagged. Default = 10
 ```
-
-will set up a virtual environment and place its directories in `virtual_environment`
-
-Once the virtual environment is set up, you must activate it:
-```bash
-$ source virtual_environment/bin/activate
-```
-
-
-#### Documentation building
-Building documentation locally:
-```bash
-$ cd documentation/
-$ make clean && make html
-```
-Then visit: `http://localhost:63342/pixel-mask-gen/documentation/_build/html/index.html` to see the documentation.

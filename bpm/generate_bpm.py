@@ -1,169 +1,104 @@
-# External
-import astropy.io.fits
+import astropy.io.fits as fits
 import os
-import sys
 import datetime
 import glob
-import time
 import logging
+import lcogt_logging
+import argparse
+import bpm.image_processing as image_processing
+import numpy as np
 
-# Internal
-import src.image_processing as image_processing
-import src.logger as logger
+logger = logging.getLogger('lco-bpm-maker')
+
+def setup_logging(log_level):
+    logger.setLevel(log_level)
+    handler = logging.StreamHandler()
+    handler.setLevel(log_level)
+    handler.setFormatter(lcogt_logging.LCOGTFormatter())
+    logger.addHandler(handler)
 
 
-def main(source_file_path):
-    r"""This function will only execute when the module is run in main context.
+def parse_args():
+    parser = argparse.ArgumentParser(description='Create a bad pixel mask from a set of calibration frames.')
+    parser.add_argument('input_directory', help='Input directory of calibration images')
+    parser.add_argument('output_directory', help='Output directory for bad pixel mask')
+    parser.add_argument('--log-level', dest='log_level', default='INFO', help='Logging level to be displayed',
+                        choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'])
+    parser.add_argument('--dark-current-threshold', dest='dark_current_threshold',
+                        help='Threshold for pixel dark current when flagging bad pixels in dark frames. Pixels above this will be flagged. Default = 35 [electrons/second]',
+                        default=35)
+    parser.add_argument('--flat-sigma-threshold', dest='flat_sigma_threshold',
+                        help='Number of standard deviations from the median of the combined flat image for a pixel to be flagged as bad. Default = 10',
+                        default=10)
+    parser.add_argument('--bias-sigma-threshold', dest='bias_sigma_threshold',
+                        help='Number of standard deviations from the median of the combined bias image for a pixel to be flagged as bad. Default = 10',
+                        default=10)
 
-    This function does the following:
+    args = parser.parse_args()
 
-    Read in the images in the directory given via the command line parameter.
+    return args
 
-    Depending on the image type, apply the correct type of processing to it.
 
-    Combine the masks for each type into one mask.
+def generate_bpm():
+    args = parse_args()
+    setup_logging(getattr(logging, args.log_level))
 
-    Write that to a FITS file.
+    calibration_frames = get_calibration_frames(os.path.normpath(args.input_directory) + '/*.fits')
 
-    :param source_file_path: The 2nd command-line parameter, which is an absolute path to the root/top-level directory\
-    of where the images will be stored.
+    if calibration_frames:
+        if len(set([frame.header['INSTRUME'] for frame in calibration_frames])) != 1:
+            raise RuntimeError("Got calibration frames from more than one camera. Aborting.")
 
-    :rtype: None
+        logger.info("Found {num_frames} calibration frames to process".format(num_frames = len(calibration_frames)))
 
+        dark_mask = image_processing.process_dark_frames(get_frames_of_type(calibration_frames, 'DARK'), args.dark_current_threshold)
+        bias_mask = image_processing.process_bias_frames(get_frames_of_type(calibration_frames, 'BIAS'), args.bias_sigma_threshold)
+
+        flats_sorted = sort_flats_by_filter((get_frames_of_type(calibration_frames, 'FLAT')))
+        flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], args.flat_sigma_threshold) for filter in flats_sorted.keys()]
+
+        flat_masks.extend([bias_mask, dark_mask])
+        combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
+
+        today_date = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+        instrument_code = calibration_frames[0].header['INSTRUME']
+        header_info = {'OBSTYPE': 'BPM'}
+
+        output_filename = os.path.join(args.output_directory, "bpm-{instrument}-{today}.fits".format(today=today_date,
+                                                                                                     instrument=instrument_code))
+        fits.writeto(filename=output_filename,
+                     data=combined_mask.astype(np.uint8),
+                     header=fits.Header(header_info),
+                     checksum=True)
+
+        logger.info("Finished processing. BPM written to {file_path}".format(file_path=output_filename))
+    else:
+        raise RuntimeError("No calibration frames could be found. Check that the directory contains calibration frames.")
+
+
+def get_calibration_frames(path_to_frames, calibration_types=['d00', 'f00', 'b00']):
     """
-
-    if source_file_path == '':
-        raise TypeError("Empty file path given.")
-
-    current_time = time.time()
-
-    my_logger.info("Started main function")
-    absolute_source_file_path = os.path.abspath(source_file_path)
-
-    hdu_for_images = get_image_hdus(
-        absolute_source_file_path, suffix_list=["b00", "d00", "f00"])
-
-    # This is a code smell, please fix this
-    bias_hdu_objects = sort_images_by_type('BIAS', hdu_for_images)
-    dark_hdu_objects = sort_images_by_type('DARK', hdu_for_images)
-    flat_hdu_objects = sort_images_by_type('SKYFLAT', hdu_for_images)
-
-    bias_image_masks = image_processing.apply_bias_processing(bias_hdu_objects)
-
-    dark_image_masks = image_processing.apply_darks_processing(
-        dark_hdu_objects)
-
-    flat_image_masks = image_processing.apply_flats_processing(
-        flat_hdu_objects)
-
-    # once you have the image masks, OR them together to get one mask
-    combined_image_mask = image_processing.combine_image_masks(
-        [bias_image_masks, dark_image_masks, flat_image_masks])
-
-    today = datetime.datetime.now()
-    format_strings = ["%Y-%m-%d", "-%H%M%S"]
-    today_date, today_time = tuple(
-        [today.strftime(str_format) for str_format in format_strings])
-
-    header_dict = {
-        'OBSTYPE': 'BPM',
-        'DATE': today.strftime("%Y-%m-%d"),
-        'TIME': today.strftime("-%H%M%S")
-    }
-
-    # cant directly write headers as dict object to astropy, must convert to header object first
-    output_filename = os.path.join(
-        'output', "bpm-{0}-{1}.fits".format(today_date, today_time))
-    astropy.io.fits.writeto(
-        filename=output_filename,
-        data=combined_image_mask,
-        header=astropy.io.fits.Header(header_dict))
-
-    finished_time = time.time()
-
-    time_diff = round(finished_time - current_time, 3)
-    my_logger.info("Time elapsed: {0}".format(time_diff))
-
-
-def get_image_hdus(
-        absolute_path_to_images,
-        suffix_list,
-        hdu_index=0,
-):
+    Given a directory of fits files, return a list of calibration frames
     """
-    Takes an absolute directory that contains images and converts those images to a list of header data objects.
+    frames = glob.glob(path_to_frames)
+    frames = [fits.open(frame, mode='readonly')[0] for frame in frames if any(obs_type in frame for obs_type in calibration_types)]
+    return frames
 
-    :param absolute_path_to_images: The absolute path of where the fits files are located. The FITS files must\
-    be unpacked for this to work.
 
-    :param hdu_to_retrieve: the index of the HDU you'd like. This will need to change to handle multi-extension fits files
-
-    :param suffix_list: A list of file suffixes to use when retrieving the fits files. The suffixes should match\
-    the filename format
-
-    :return: A list of HDU objects
-
+def get_frames_of_type(frames, observation_type):
     """
-    # Uses the suffix_list to construct a regex/wildcard pattern to search for files. So if your suffix list is:
-    # a, b, c, this expression will be something like: '*[a|b|c].fits'
-    if len(suffix_list) == 0:
-        raise ValueError("No valid list of suffixes were passed.")
-
-    file_wildcard_pattern = os.path.join(
-        absolute_path_to_images, "*[{0}].fits".format('|'.join(suffix_list)))
-
-    fits_images_list = [
-        os.path.abspath(path) for path in glob.glob(file_wildcard_pattern)
-    ]
-
-    hdu_list_for_images = [(astropy.io.fits.open(fits_image,
-                                                 mode='readonly'))[hdu_index]
-                           for fits_image in fits_images_list]
-
-    return hdu_list_for_images
-
-
-def sort_images_by_type(image_type, hdu_list):
+    Takes in a list of frames, and returns frames which match the observation
+    type provided.
     """
-    Takes in a list of HDU objects, and only preserves the HDU objects whose obstype match the specified image type.
+    return [frame for frame in frames if observation_type in frame.header['OBSTYPE']]
 
-    :param image_type: Typically will be one of either, "BIAS", "DARK", or "SKYFLAT"
-    :param hdu_list: A list of HDU objects
-    :return: A list of HDU objects
+
+def sort_flats_by_filter(frames):
     """
-
-    # Should this function be condensed into a one-line list comprehension?
-    desired_hdus = []
-    for hdu in hdu_list:
-        if hdu.header['OBSTYPE'].strip() == image_type:
-            desired_hdus.append(hdu)
-
-    return desired_hdus
-
-
-def generate_flattened_list(list_to_flatten):
-    """Takes in a doubly-nested (i.e. 2-layer deep) list and returns a flattened version where each element is a tuple
-
-    :param list_to_flatten: A 2-layer deep list to flatten and convert to tuples
-    :return: A flattened, 1D list, where each element is a tuple
+    Given a set of flat frames, sort them by filter and return a dict of the
+    form:
+    {filter_type:[frames_with_filter]}
     """
-    flattened_list = []
-    for sublist in list_to_flatten:
-        for coords in sublist:
-            flattened_list.append(tuple(coords))
-
-    return flattened_list
-
-
-if __name__ == '__main__':
-    global my_logger
-    my_logger = logger.setup_custom_logger()
-    my_logger.setLevel(logging.DEBUG)
-
-    my_logger.debug("Starting main script.")
-
-    if sys.argv[1] is None:
-        raise TypeError(
-            "Missing parameter. No directory for source images was specified.")
-
-    main(sys.argv[1])
+    filters = set([frame.header['FILTER'] for frame in frames])
+    return {filter: [frame for frame in frames if frame.header['FILTER'] == filter]
+                    for filter in filters}
