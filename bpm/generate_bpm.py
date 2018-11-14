@@ -49,15 +49,24 @@ def generate_bpm():
         if len(set([frame.header['INSTRUME'] for frame in calibration_frames])) != 1:
             raise RuntimeError("Got calibration frames from more than one camera. Aborting.")
 
-        logger.info("Found {num_frames} calibration frames to process".format(num_frames = len(calibration_frames)))
+        camera_has_no_overscan = False
+        if calibration_frames[0].header['BIASSEC'] == 'UNKNOWN':
+            camera_has_no_overscan = True
+
         frames_sorted_by_binning = sort_frames_by_header_values(calibration_frames, 'CCDSUM')
 
+        logger.info("Beginning processing on {num_frames} calibration frames".format(num_frames = len(calibration_frames)))
         for binning in frames_sorted_by_binning.keys():
-            dark_mask = image_processing.process_dark_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'DARK'), args.dark_current_threshold)
-            bias_mask = image_processing.process_bias_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'BIAS'), args.bias_sigma_threshold)
+            if camera_has_no_overscan:
+                bias_level = image_processing.get_bias_level_from_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'BIAS'))
+            else:
+                bias_level = None
+
+            dark_mask = image_processing.process_dark_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'DARK'), int(args.dark_current_threshold), bias_level)
+            bias_mask = image_processing.process_bias_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'BIAS'), int(args.bias_sigma_threshold))
 
             flats_sorted = sort_frames_by_header_values((get_frames_of_type(frames_sorted_by_binning[binning], 'FLAT')), 'FILTER')
-            flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], args.flat_sigma_threshold) for filter in flats_sorted.keys()]
+            flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], int(args.flat_sigma_threshold), bias_level) for filter in flats_sorted.keys()]
 
             flat_masks.extend([bias_mask, dark_mask])
             combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
