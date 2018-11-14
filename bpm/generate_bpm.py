@@ -50,28 +50,32 @@ def generate_bpm():
             raise RuntimeError("Got calibration frames from more than one camera. Aborting.")
 
         logger.info("Found {num_frames} calibration frames to process".format(num_frames = len(calibration_frames)))
+        frames_sorted_by_binning = sort_frames_by_header_values(calibration_frames, 'CCDSUM')
 
-        dark_mask = image_processing.process_dark_frames(get_frames_of_type(calibration_frames, 'DARK'), args.dark_current_threshold)
-        bias_mask = image_processing.process_bias_frames(get_frames_of_type(calibration_frames, 'BIAS'), args.bias_sigma_threshold)
+        for binning in frames_sorted_by_binning.keys():
+            dark_mask = image_processing.process_dark_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'DARK'), args.dark_current_threshold)
+            bias_mask = image_processing.process_bias_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'BIAS'), args.bias_sigma_threshold)
 
-        flats_sorted = sort_flats_by_filter((get_frames_of_type(calibration_frames, 'FLAT')))
-        flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], args.flat_sigma_threshold) for filter in flats_sorted.keys()]
+            flats_sorted = sort_frames_by_header_values((get_frames_of_type(frames_sorted_by_binning[binning], 'FLAT')), 'FILTER')
+            flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], args.flat_sigma_threshold) for filter in flats_sorted.keys()]
 
-        flat_masks.extend([bias_mask, dark_mask])
-        combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
+            flat_masks.extend([bias_mask, dark_mask])
+            combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
 
-        today_date = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
-        instrument_code = calibration_frames[0].header['INSTRUME']
-        header_info = {'OBSTYPE': 'BPM'}
+            today_date = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+            instrument_code = calibration_frames[0].header['INSTRUME']
+            header_info = {'OBSTYPE': 'BPM'}
 
-        output_filename = os.path.join(args.output_directory, "bpm-{instrument}-{today}.fits".format(today=today_date,
-                                                                                                     instrument=instrument_code))
-        fits.writeto(filename=output_filename,
-                     data=combined_mask.astype(np.uint8),
-                     header=fits.Header(header_info),
-                     checksum=True)
+            output_filename = os.path.join(args.output_directory, "bpm-{instrument}-{bin_type}-{today}.fits".format(instrument=instrument_code,
+                                                                                                                    today=today_date,
+                                                                                                                    bin_type=binning.replace(" ", "x")))
+            fits.writeto(filename=output_filename,
+                         data=combined_mask.astype(np.uint8),
+                         header=fits.Header(header_info),
+                         checksum=True)
 
-        logger.info("Finished processing. BPM written to {file_path}".format(file_path=output_filename))
+            logger.info("Finished processing. BPM written to {file_path}".format(file_path=output_filename))
+
     else:
         raise RuntimeError("No calibration frames could be found. Check that the directory contains calibration frames.")
 
@@ -92,13 +96,12 @@ def get_frames_of_type(frames, observation_type):
     """
     return [frame for frame in frames if observation_type in frame.header['OBSTYPE']]
 
-
-def sort_flats_by_filter(frames):
+def sort_frames_by_header_values(frames, header_keyword):
     """
-    Given a set of flat frames, sort them by filter and return a dict of the
-    form:
-    {filter_type:[frames_with_filter]}
+    Given a set of flat frames and a header keyword, sort the frames by the corresponding
+    header values into a form:
+    {header_value:[frames_with_header_value]}
     """
-    filters = set([frame.header['FILTER'] for frame in frames])
-    return {filter: [frame for frame in frames if frame.header['FILTER'] == filter]
-                    for filter in filters}
+    header_values = set([frame.header[header_keyword] for frame in frames])
+    return {value: [frame for frame in frames if frame.header[header_keyword] == value]
+                    for value in header_values}
