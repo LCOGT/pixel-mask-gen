@@ -71,8 +71,13 @@ def generate_bpm():
             combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
 
             today_date = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
-            instrument_code = calibration_frames[0].header['INSTRUME']
-            header_info = {'OBSTYPE': 'BPM'}
+            instrument_code = frames_sorted_by_binning[binning][0].header['INSTRUME']
+
+            header_info = {'OBSTYPE': 'BPM',
+                           'DAY-OBS': frames_sorted_by_binning[binning][0].header['DAY-OBS'],
+                           'CCDSUM': binning,
+                           'SITEID': frames_sorted_by_binning[binning][0].header['SITEID'],
+                           'INSTRUME': instrument_code}
 
             output_filename = os.path.join(args.output_directory, "bpm-{instrument}-{bin_type}-{today}.fits".format(instrument=instrument_code,
                                                                                                                     today=today_date,
