@@ -49,9 +49,8 @@ def generate_bpm():
         if len(set([frame.header['INSTRUME'] for frame in calibration_frames])) != 1:
             raise RuntimeError("Got calibration frames from more than one camera. Aborting.")
 
-        camera_has_no_overscan = False
-        if calibration_frames[0].header['BIASSEC'] == 'UNKNOWN':
-            camera_has_no_overscan = True
+        #check if camera has an overscan region
+        camera_has_no_overscan = True if calibration_frames[0].header['BIASSEC'] == 'UNKNOWN' else False
 
         frames_sorted_by_binning = sort_frames_by_header_values(calibration_frames, 'CCDSUM')
 
