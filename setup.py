@@ -1,8 +1,15 @@
 from setuptools import setup, find_packages
 
+with open("README.md", "r") as fh:
+    long_description = fh.read()
+
 setup(name='lco-bpm-maker',
-      author='Curtis McCully, Raleigh Littles, Matt Daily',
+      author='Matt Daily',
+      author_email='mdaily@lco.global',
+      url='https://github.com/LCOGT/pixel-mask-gen',
       description='LCO bad pixel mask creator',
+      long_description=long_description,
+      long_description_content_type='text/markdown',
       version='0.1.0',
       packages=find_packages(),
       setup_requires=['pytest-runner'],
