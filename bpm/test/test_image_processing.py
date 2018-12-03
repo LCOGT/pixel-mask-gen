@@ -11,9 +11,8 @@ def test_process_bias_frames():
 
     bias_mask = image_processing.process_bias_frames(bias_frames, mask_threshold=10)
     flagged_pixels = np.where(bias_mask == True)
-    trimsec_section = image_utils.get_slices_from_header_section(bias_frames[0].header['TRIMSEC'])
 
-    assert np.shape(bias_mask) == np.shape(bias_frames[0].data[trimsec_section])
+    assert np.shape(bias_mask) == np.shape(bias_frames[0].data)
     assert set(bad_pixel_locations[0]) == set(flagged_pixels[0])
     assert set(bad_pixel_locations[1]) == set(flagged_pixels[1])
 
@@ -24,9 +23,8 @@ def test_process_dark_frames():
 
     dark_mask = image_processing.process_dark_frames(dark_frames)
     flagged_pixels = np.where(dark_mask==True)
-    trimsec_section = image_utils.get_slices_from_header_section(dark_frames[0].header['TRIMSEC'])
 
-    assert np.shape(dark_mask) == np.shape(dark_frames[0].data[trimsec_section])
+    assert np.shape(dark_mask) == np.shape(dark_frames[0].data)
     assert set(flagged_pixels[0]) == set(bad_pixel_locations[0])
     assert set(flagged_pixels[1]) == set(bad_pixel_locations[1])
 
@@ -42,9 +40,8 @@ def test_process_flat_frames():
 
     flat_mask = image_processing.process_flat_frames(flat_frames, mask_threshold=10)
     flagged_pixels = np.where(flat_mask == True)
-    trimsec_section = image_utils.get_slices_from_header_section(flat_frames[0].header['TRIMSEC'])
 
-    assert np.shape(flat_mask) == np.shape(flat_frames[0].data[trimsec_section])
+    assert np.shape(flat_mask) == np.shape(flat_frames[0].data)
     assert set(bad_pixel_locations[0]) == set(flagged_pixels[0])
     assert set(bad_pixel_locations[1]) == set(flagged_pixels[1])
 
