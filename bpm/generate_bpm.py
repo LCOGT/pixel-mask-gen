@@ -56,10 +56,7 @@ def generate_bpm():
 
         logger.info("Beginning processing on {num_frames} calibration frames".format(num_frames = len(calibration_frames)))
         for binning in frames_sorted_by_binning.keys():
-            if camera_has_no_overscan:
-                bias_level = image_processing.get_bias_level_from_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'BIAS'))
-            else:
-                bias_level = None
+            bias_level  = image_processing.get_bias_level_from_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'BIAS')) if camera_has_no_overscan else None
 
             dark_mask = image_processing.process_dark_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'DARK'), int(args.dark_current_threshold), bias_level)
             bias_mask = image_processing.process_bias_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'BIAS'), int(args.bias_sigma_threshold))
