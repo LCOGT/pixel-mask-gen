@@ -19,10 +19,7 @@ def process_bias_frames(bias_frames, mask_threshold=10):
 
     for frame in bias_frames:
         image_data = np.float32(frame.data)
-        trimsec_section = image_utils.get_slices_from_header_section(frame.header['TRIMSEC'])
-
         image_data -= np.median(image_data)
-
         corrected_frames.append(image_data)
 
     return image_utils.mask_outliers(np.dstack(corrected_frames), mask_threshold)
@@ -79,7 +76,7 @@ def process_flat_frames(flat_frames, mask_threshold=10, bias_level=None):
 
         image_data -= bias_level
         image_data /= np.median(image_data)
-        
+
         corrected_frames.append(image_data)
 
     return image_utils.mask_outliers(np.dstack(corrected_frames), mask_threshold)

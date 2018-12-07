@@ -7,6 +7,7 @@ import lcogt_logging
 import argparse
 import bpm.image_processing as image_processing
 import numpy as np
+import bpm.image_utils as image_utils
 
 logger = logging.getLogger('lco-bpm-maker')
 
