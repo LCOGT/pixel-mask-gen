@@ -73,14 +73,15 @@ def generate_bpm():
             flat_masks.extend([bias_mask, dark_mask])
             combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
 
-            today_date = datetime.datetime.now().strftime("%Y-%m-%d-%H%M%S")
+            today_date = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H%M%S")
             instrument_code = frames_sorted_by_binning[binning][0].header['INSTRUME']
 
             header_info = {'OBSTYPE': 'BPM',
                            'DAY-OBS': frames_sorted_by_binning[binning][0].header['DAY-OBS'],
                            'CCDSUM': binning,
                            'SITEID': frames_sorted_by_binning[binning][0].header['SITEID'],
-                           'INSTRUME': instrument_code}
+                           'INSTRUME': instrument_code,
+                           'DATE-OBS': datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]}
 
             output_filename = os.path.join(args.output_directory, "bpm-{instrument}-{bin_type}-{today}.fits".format(instrument=instrument_code,
                                                                                                                     today=today_date,
