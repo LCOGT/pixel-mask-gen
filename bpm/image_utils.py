@@ -1,5 +1,6 @@
 import numpy as np
 import astropy.stats
+import astropy.io.fits as fits
 
 def mask_outliers(stacked_frames, mask_threshold=10):
     """
@@ -61,3 +62,32 @@ def split_slice(pixel_section):
         else:
             pixel_slice = slice(int(pixels[0]) - 1, int(pixels[1]) - 2, -1)
     return pixel_slice
+
+
+def get_extensions_by_name(fits_hdulist, name):
+    """
+    Get a list of the science extensions from a multi-extension fits file (HDU list)
+    Parameters
+    ----------
+    fits_hdulist: HDUList
+                  input fits HDUList to search for SCI extensions
+    name: str
+          Extension name to collect, e.g. SCI
+    Returns
+    -------
+    HDUList: an HDUList object with only the SCI extensions
+    """
+    # The following of using False is just an awful convention and will probably be
+    # deprecated at some point
+    extension_info = fits_hdulist.info(False)
+    return fits.HDUList([fits_hdulist[ext[0]] for ext in extension_info if ext[1] == name])
+
+
+def apply_header_value_to_all_extensions(frame, header_keyword):
+    """
+    Apply a header value from an image's PrimaryHDU to its
+    extensions.
+    """
+    header_value = frame[0].header[header_keyword]
+    for extension_num in range(1, len(frame)):
+        frame[extension_num].header[header_keyword] = header_value
