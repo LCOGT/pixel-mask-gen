@@ -80,6 +80,8 @@ def generate_bpm():
                            'DAY-OBS': frames_sorted_by_binning[binning][0].header['DAY-OBS'],
                            'CCDSUM': binning,
                            'SITEID': frames_sorted_by_binning[binning][0].header['SITEID'],
+                           'ENCID': frames_sorted_by_binning[binning][0].header['ENCID'],
+                           'TELID': frames_sorted_by_binning[binning][0].header['TELID'],
                            'INSTRUME': instrument_code,
                            'DATE-OBS': datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]}
 
