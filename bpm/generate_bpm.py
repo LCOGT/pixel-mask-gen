@@ -51,16 +51,27 @@ def generate_bpm():
             raise RuntimeError("Got calibration frames from more than one camera. Aborting.")
 
         #separate out single and multi-extension FITS files
-        single_extension_frames = [frame for frame in calibration_frames if len(frame) == 1]
+        single_extension_frames = [frame[0] for frame in calibration_frames if len(frame) == 1]
         multi_extension_frames = [frame for frame in calibration_frames if frame not in single_extension_frames]
 
-        process_multi_extension_frames(multi_extension_frames)
-        process_single_extension_frames(single_extension_frames)
+        #Create BPMs!
+        process_multi_extension_frames(multi_extension_frames,
+                                       int(args.dark_current_threshold),
+                                       int(args.flat_sigma_threshold),
+                                       ing(args.bias_sigma_threshold))
+
+        process_single_extension_frames(single_extension_frames,
+                                        int(args.dark_current_threshold),
+                                        int(args.flat_sigma_threshold),
+                                        ing(args.bias_sigma_threshold))
     else:
         raise RuntimeError("No calibration frames could be found. Check that the directory contains calibration frames.")
 
 
-def process_multi_extension_frames(frames):
+def process_multi_extension_frames(frames,
+                                   dark_current_threshold,
+                                   flat_sigma_threshold,
+                                   bias_sigma_threshold):
     if len(frames) == 0:
         return
 
@@ -72,11 +83,12 @@ def process_multi_extension_frames(frames):
         logger.warn("Couldn't parse BIASSEC keyword. Using bias frames to determine camera bias level.")
 
     #Sort frames by binning
-    frames_sorted_by_binning = sort_frames_by_header_values(frames, 'CCDSUM')
+    frames_sorted_by_binning = image_utils.sort_frames_by_header_values(frames, 'CCDSUM')
 
     logger.info("Beginning processing on {num_frames} calibration frames".format(num_frames = len(frames)))
     for binning in frames_sorted_by_binning.keys():
         frames_sorted = frames_sorted_by_binning[binning]
+        #TODO: make sure this actually works
         bias_level  = image_processing.get_bias_level_from_frames(get_frames_of_type(frames_sorted_by_binning[binning], 'BIAS')) if camera_has_no_overscan else None
 
         #Update SCI extensions with required header values for image processing methods
@@ -88,10 +100,40 @@ def process_multi_extension_frames(frames):
         bias_sci_extensions = [get_extensions_by_name(frame, 'SCI') for frame in get_frames_of_type(frames_sorted, 'BIAS')]
         flat_sci_extensions = [get_extensions_by_name(frame, 'SCI') for frame in get_frames_of_type(frames_sorted, 'FLAT')]
 
-        #stack frames according to extver
+        #For flats, separate SCI extensions by filter
+        flat_sci_extensions_sorted = image_utils.sort_frames_by_header_values(flat_sci_extensions, 'FILTER')
+
+        #for every filter type, further sort flat SCI extensions by EXTVER keyword
+        flat_stacks = []
+        for filter in flat_sci_extensions_sorted.keys():
+            flat_stacks.append(stack_frames_by_extver(flat_sci_extensions_sorted[filter]))
+
+        #Stack bias and dark frames according to EXTVER
+        dark_frames_stacked = image_utils.stack_frames_by_extver(dark_sci_extensions)
+        bias_frames_stacked = image_utils.stack_frames_by_extver(bias_sci_extensions)
+
+        #Now that we have all images stacked, create bpms!
+        dark_bpms = {extver_key: image_processing.process_dark_frames([frame[0] for frame in dark_frames_stacked[extver_key]],
+                                                                      dark_current_threshold,
+                                                                      bias_level)
+                     for extver_key in dark_frames_stacked.keys()}
+
+        bias_bpms = {extver_key: image_processing.process_bias_frames([frame[0] for frame in bias_frames_stacked[extver_key]],
+                                                                      bias_sigma_threshold)
+                     for extver_key in dark_frames_stacked.keys()}}
+
+        flat_bpms = []
+            for filter in flat_stacks:
+                flat_bpms_for_filter = {extver_key: image_processing.process_flat_frames([frame[0] for frame in filter[extver_key]],
+                                                                                         flat_sigma_threshold)
+                                        for extver_key in filter.keys()}
+                flat_bpms.append(flat_bpms_for_filter)
 
 
-def process_single_extension_frames(frames):
+def process_single_extension_frames(frames,
+                                    dark_current_threshold,
+                                    flat_sigma_threshold,
+                                    bias_sigma_threshold):
     if len(frames) == 0:
         return
 
@@ -103,7 +145,7 @@ def process_single_extension_frames(frames):
     except:
         logger.warn("Couldn't parse BIASSEC keyword. Using bias frames to determine camera bias level.")
 
-    frames_sorted_by_binning = sort_frames_by_header_values(frames, 'CCDSUM')
+    frames_sorted_by_binning = image_utils.sort_frames_by_header_values(frames, 'CCDSUM')
 
     logger.info("Beginning processing on {num_frames} calibration frames".format(num_frames = len(frames)))
     for binning in frames_sorted_by_binning.keys():
@@ -111,11 +153,11 @@ def process_single_extension_frames(frames):
 
         bias_level  = image_processing.get_bias_level_from_frames(get_frames_of_type(frames_sorted, 'BIAS')) if camera_has_no_overscan else None
 
-        dark_mask = image_processing.process_dark_frames(get_frames_of_type(frames_sorted, 'DARK'), int(args.dark_current_threshold), bias_level)
-        bias_mask = image_processing.process_bias_frames(get_frames_of_type(frames_sorted, 'BIAS'), int(args.bias_sigma_threshold))
+        dark_mask = image_processing.process_dark_frames(get_frames_of_type(frames_sorted, 'DARK'), int(dark_current_threshold), bias_level)
+        bias_mask = image_processing.process_bias_frames(get_frames_of_type(frames_sorted, 'BIAS'), int(bias_sigma_threshold))
 
-        flats_sorted = sort_frames_by_header_values((get_frames_of_type(frames_sorted, 'FLAT')), 'FILTER')
-        flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], int(args.flat_sigma_threshold), bias_level) for filter in flats_sorted.keys()]
+        flats_sorted = image_utils.sort_frames_by_header_values((get_frames_of_type(frames_sorted, 'FLAT')), 'FILTER')
+        flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], int(flat_sigma_threshold), bias_level) for filter in flats_sorted.keys()]
 
         flat_masks.extend([bias_mask, dark_mask])
         combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
@@ -141,14 +183,6 @@ def process_single_extension_frames(frames):
         logger.info("Finished processing. BPM written to {file_path}".format(file_path=output_filename))
 
 
-def stack_frames_by_extver(frames):
-    """
-    Given a 2D list of SCI extensions, flatten it and
-    stack frames according to their EXTVER header keyword
-    """
-    frames_flattened = [extension for extension in frames for extension in extension]
-
-
 def get_calibration_frames(path_to_frames, calibration_types=['d00', 'f00', 'b00']):
     """
     Given a directory of fits files, return a list of calibration frames
@@ -164,14 +198,3 @@ def get_frames_of_type(frames, observation_type):
     type provided.
     """
     return [frame for frame in frames if observation_type in frame[0].header['OBSTYPE']]
-
-
-def sort_frames_by_header_values(frames, header_keyword):
-    """
-    Given a set of flat frames and a header keyword, sort the frames by the corresponding
-    header values into a form:
-    {header_value:[frames_with_header_value]}
-    """
-    header_values = set([frame[0].header[header_keyword] for frame in frames])
-    return {value: [frame for frame in frames if frame[0].header[header_keyword] == value]
-                    for value in header_values}

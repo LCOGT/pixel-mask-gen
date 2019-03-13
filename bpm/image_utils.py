@@ -83,11 +83,35 @@ def get_extensions_by_name(fits_hdulist, name):
     return fits.HDUList([fits_hdulist[ext[0]] for ext in extension_info if ext[1] == name])
 
 
-def apply_header_value_to_all_extensions(frame, header_keyword):
+def apply_header_value_to_all_extensions(frames, header_keyword):
     """
     Apply a header value from an image's PrimaryHDU to its
     extensions.
     """
-    header_value = frame[0].header[header_keyword]
-    for extension_num in range(1, len(frame)):
-        frame[extension_num].header[header_keyword] = header_value
+    for frame in frames:
+        header_value = frame[0].header[header_keyword]
+        for extension_num in range(1, len(frame)):
+            frame[extension_num].header[header_keyword] = header_value
+
+
+def stack_frames_by_extver(frames):
+    """
+    Given a 2D list of SCI extensions, flatten it and
+    stack frames according to their EXTVER header keyword
+
+    {header['EXTVER']: [frames_of_same_extver]}
+    """
+    frames_flattened = [fits.HDUList(extension) for extension in frames for extension in extension]
+    return sort_frames_by_header_values(frames_flattened, 'EXTVER')
+
+
+
+def sort_frames_by_header_values(frames, header_keyword):
+    """
+    Given a set of frames and a header keyword, sort the frames by the corresponding
+    header values into a form:
+    {header_value:[frames_with_header_value]}
+    """
+    header_values = set([frame[0].header[header_keyword] for frame in frames])
+    return {value: [frame for frame in frames if frame[0].header[header_keyword] == value]
+                    for value in header_values}
