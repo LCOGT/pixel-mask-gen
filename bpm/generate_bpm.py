@@ -95,9 +95,10 @@ def process_multi_extension_frames(frames,
         frames_sorted = frames_sorted_by_binning[binning]
 
         #Update SCI extensions with required header values for image processing methods
-        image_utils.apply_header_value_to_all_extensions(frames_sorted, 'OBSTYPE')
-        image_utils.apply_header_value_to_all_extensions(get_frames_of_type(frames_sorted, 'DARK'), 'EXPTIME')
-        image_utils.apply_header_value_to_all_extensions(get_frames_of_type(frames_sorted, 'FLAT'), 'FILTER')
+        header_keywords_to_update = ['OBSTYPE', 'EXPTIME', 'FILTER']
+
+        for keyword in header_keywords_to_update:
+            image_utils.apply_header_value_to_all_extensions(multi_extension_frames, keyword)
 
         #Treat each amplifier as a separate image
         for amplifier in range(0, n_amplifiers):
