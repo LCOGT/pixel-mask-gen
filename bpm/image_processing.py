@@ -81,13 +81,11 @@ def process_flat_frames(flat_frames, mask_threshold=10, bias_level=None):
 
     return image_utils.mask_outliers(np.dstack(corrected_frames), mask_threshold)
 
-def get_bias_level_from_frames(bias_frames):
+def get_bias_level_from_frames(bias_frames, header_section='TRIMSEC'):
     """
     Determine camera bias level from a set of bias frames
 
     :param bias_frames: list of bias frames
+    :param header_section: section of image to use to determine bias level, default=Trimsec
     """
-    trimsec_section = image_utils.get_slices_from_header_section(bias_frames[0].header['TRIMSEC'])
-    bias_level = np.median([np.median(frame.data[trimsec_section]) for frame in bias_frames])
-
-    return bias_level
+    return np.median([np.median(frame.data[image_utils.get_slices_from_header_section(frame.header[header_section])]) for frame in bias_frames])

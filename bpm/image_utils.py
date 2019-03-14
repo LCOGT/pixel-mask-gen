@@ -94,24 +94,23 @@ def apply_header_value_to_all_extensions(frames, header_keyword):
             frame[extension_num].header[header_keyword] = header_value
 
 
-def stack_frames_by_extver(frames):
-    """
-    Given a 2D list of SCI extensions, flatten it and
-    stack frames according to their EXTVER header keyword
-
-    {header['EXTVER']: [frames_of_same_extver]}
-    """
-    frames_flattened = [fits.HDUList(extension) for extension in frames for extension in extension]
-    return sort_frames_by_header_values(frames_flattened, 'EXTVER')
-
-
-
 def sort_frames_by_header_values(frames, header_keyword):
     """
     Given a set of frames and a header keyword, sort the frames by the corresponding
     header values into a form:
     {header_value:[frames_with_header_value]}
     """
-    header_values = set([frame[0].header[header_keyword] for frame in frames])
-    return {value: [frame for frame in frames if frame[0].header[header_keyword] == value]
+    header_values = set([frame.header[header_keyword] for frame in frames])
+    return {value: [frame for frame in frames if frame.header[header_keyword] == value]
                     for value in header_values}
+
+
+def get_sci_extensions_from_amplifier(frames, amplifier):
+    """
+    Given a list of multi-extension FITS files, return a list
+    of all SCI extensions for a given amplifier index.
+
+    e.g. For Sinistro, there are 4 amplifiers, and the SCI extensions are indexed
+    0-3.
+    """
+    return [get_extensions_by_name(frame, 'SCI')[amplifier] for frame in frames]
