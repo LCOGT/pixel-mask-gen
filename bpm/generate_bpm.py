@@ -27,7 +27,7 @@ def parse_args():
                         choices=['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'])
     parser.add_argument('--dark-current-threshold', dest='dark_current_threshold',
                         help='Threshold for pixel dark current when flagging bad pixels in dark frames. Pixels above this will be flagged. Default = 35 [electrons/second]',
-                        default=35)
+                        default=20)
     parser.add_argument('--flat-sigma-threshold', dest='flat_sigma_threshold',
                         help='Number of standard deviations from the median of the combined flat image for a pixel to be flagged as bad. Default = 10',
                         default=10)
@@ -50,31 +50,17 @@ def generate_bpm():
         if len(set([frame[0].header['INSTRUME'] for frame in calibration_frames])) != 1:
             raise RuntimeError("Got calibration frames from more than one camera. Aborting.")
 
-        #separate out single and multi-extension FITS files
         multi_extension_frames = [frame for frame in calibration_frames if len(frame) > 1]
         single_extension_frames = [frame[0] for frame in calibration_frames if frame not in multi_extension_frames]
 
         #Create BPMs!
-        process_multi_extension_frames(multi_extension_frames,
-                                       int(args.dark_current_threshold),
-                                       int(args.flat_sigma_threshold),
-                                       int(args.bias_sigma_threshold),
-                                       args.output_directory)
-
-        process_single_extension_frames(single_extension_frames,
-                                        int(args.dark_current_threshold),
-                                        int(args.flat_sigma_threshold),
-                                        int(args.bias_sigma_threshold),
-                                        args.output_directory)
+        process_multi_extension_frames(multi_extension_frames, args)
+        process_single_extension_frames(single_extension_frames, args)
     else:
         raise RuntimeError("No calibration frames could be found. Check that the directory contains calibration frames.")
 
 
-def process_multi_extension_frames(frames,
-                                   dark_current_threshold,
-                                   flat_sigma_threshold,
-                                   bias_sigma_threshold,
-                                   output_directory):
+def process_multi_extension_frames(frames, command_line_args):
     """
     Process a set of multi-extension FITS frames into bad pixel mask(s).
     """
@@ -91,8 +77,20 @@ def process_multi_extension_frames(frames,
     except:
         logger.warn("Couldn't parse BIASSEC keyword. Using bias frames to determine camera bias level.")
 
+    #Update SCI extensions with required header values for image processing methods
+    header_keywords_to_update = ['OBSTYPE', 'EXPTIME', 'FILTER', 'CCDSUM', 'GAIN', 'ORIGNAME']
+
+    for keyword in header_keywords_to_update:
+        image_utils.apply_header_value_to_all_extensions(frames, keyword)
+
+    #Extract all sci extensions
+    sci_extensions = []
+    for frame in frames:
+        sci_extensions.extend(image_utils.get_extensions_by_name(frame, 'SCI'))
+
     #Sort frames by binning
-    frames_sorted_by_binning = image_utils.sort_frames_by_header_values(frames, 'CCDSUM')
+    #Only use the PrimaryHDU for each image -
+    frames_sorted_by_binning = image_utils.sort_frames_by_header_values([extension for extension in sci_extensions], 'CCDSUM')
 
     logger.info("Beginning processing on {num_frames} calibration frames".format(num_frames = len(frames)))
 
@@ -100,40 +98,32 @@ def process_multi_extension_frames(frames,
     for binning in frames_sorted_by_binning.keys():
         frames_sorted = frames_sorted_by_binning[binning]
 
-        #Update SCI extensions with required header values for image processing methods
-        header_keywords_to_update = ['OBSTYPE', 'EXPTIME', 'FILTER']
-
-        for keyword in header_keywords_to_update:
-            image_utils.apply_header_value_to_all_extensions(multi_extension_frames, keyword)
-
-        #Treat each amplifier as a separate image
+        #Treat each amplifier as a separate image - create one mask for each
+        #In LCO FITS standard, amplifiers are 1-indexed (1-4) by EXTVER keyword
         masks = []
-        for amplifier in range(0, n_amplifiers):
-            amplifier_frames = image_utils.get_sci_extensions_from_amplifier(frames_sorted, 0)
+        for amplifier in range(1, n_amplifiers+1):
+            amplifier_frames = image_utils.get_sci_extensions_from_amplifier(frames_sorted, amplifier)
 
-            combined_mask = create_final_mask(frames_sorted,
-                                              dark_current_threshold,
-                                              flat_sigma_threshold,
-                                              bias_sigma_threshold,
+            combined_mask = create_final_mask(amplifier_frames,
+                                              command_line_args,
                                               camera_has_no_overscan)
 
+            logger.info("Created mask for extension {extnum}".format(extnum=amplifier))
             masks.append(combined_mask)
 
+        mask_stack = np.dstack(masks)
+
         header = fits.Header({'OBSTYPE': 'BPM',
-                              'DAY-OBS': frames_sorted_by_binning[binning][0].header['DAY-OBS'],
+                              'DAY-OBS': frames[0][0].header['DAY-OBS'],
                               'CCDSUM': binning,
-                              'SITEID': frames_sorted_by_binning[binning][0].header['SITEID'],
-                              'INSTRUME': frames_sorted_by_binning[binning][0].header['INSTRUME'],
+                              'SITEID': frames[0][0].header['SITEID'],
+                              'INSTRUME': frames[0][0].header['INSTRUME'],
                               'DATE-OBS': datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]})
 
-        write_bpm_to_file(masks, output_directory, header)
+        write_bpm_to_file(mask_stack, command_line_args.output_directory, header)
 
 
-def process_single_extension_frames(frames,
-                                    dark_current_threshold,
-                                    flat_sigma_threshold,
-                                    bias_sigma_threshold,
-                                    output_directory):
+def process_single_extension_frames(frames, command_line_args):
     """
     Process a set of single-extension FITS frames into bad pixel mask(s).
     """
@@ -155,53 +145,52 @@ def process_single_extension_frames(frames,
         frames_sorted = frames_sorted_by_binning[binning]
 
         combined_mask = create_final_mask(frames_sorted,
-                                          dark_current_threshold,
-                                          flat_sigma_threshold,
-                                          bias_sigma_threshold,
+                                          command_line_args,
                                           camera_has_no_overscan)
 
         header = fits.Header({'OBSTYPE': 'BPM',
-                              'DAY-OBS': frames_sorted_by_binning[binning][0].header['DAY-OBS'],
+                              'DAY-OBS': frames[0].header['DAY-OBS'],
                               'CCDSUM': binning,
-                              'SITEID': frames_sorted_by_binning[binning][0].header['SITEID'],
-                              'INSTRUME': frames_sorted_by_binning[binning][0].header['INSTRUME'],
+                              'SITEID': frames[0].header['SITEID'],
+                              'INSTRUME': frames[0].header['INSTRUME'],
                               'DATE-OBS': datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]})
 
-        write_bpm_to_file(combined_mask, output_directory, header)
+        write_bpm_to_file(combined_mask, command_line_args.output_directory, header)
 
 
-def write_bpm_to_file(combined_masks, output_directory, header):
+def write_bpm_to_file(masks, output_directory, header):
     """
     Write output BPM to file.
     """
-
     today_date = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H%M%S")
     output_filename = os.path.join(output_directory, "bpm-{instrument}-{bin_type}-{today}.fits".format(instrument=header['INSTRUME'],
                                                                                                        today=today_date,
                                                                                                        bin_type=header['CCDSUM'].replace(" ", "x")))
-
-    if combined_masks.ndim != 1:
-        hdu_list = fits.HDUList([fits.ImageHDU(data=mask, header=header) for mask in combined_masks])
+    # pdb.set_trace()
+    if len(masks.shape) > 2:
+        image_hdus = [fits.ImageHDU(data=masks[:,:,i].astype(np.uint8), header=header) for i in range(0, masks.shape[2])]
+        hdu_list = fits.HDUList([fits.PrimaryHDU(header=header)] + image_hdus)
+        hdu_list.writeto(output_filename)
     else:
         fits.writeto(filename=output_filename,
-                     data=combined_masks.astype(np.uint8),
+                     data=masks.astype(np.uint8),
                      header=header,
                      checksum=True)
 
     logger.info("Finished processing. BPM written to {file_path}".format(file_path=output_filename))
 
 
-def create_final_mask(frames, dark_current_threshold, bias_sigma_threshold, flat_sigma_threshold, camera_has_no_overscan=True):
+def create_final_mask(frames, command_line_args, camera_has_no_overscan=True):
     """
     From a set of calibration frames, create a final bad pixel mask.
     """
     bias_level  = image_processing.get_bias_level_from_frames(get_frames_of_type(frames, 'BIAS')) if camera_has_no_overscan else None
 
-    dark_mask = image_processing.process_dark_frames(get_frames_of_type(frames, 'DARK'), int(dark_current_threshold), bias_level)
-    bias_mask = image_processing.process_bias_frames(get_frames_of_type(frames, 'BIAS'), int(bias_sigma_threshold))
+    dark_mask = image_processing.process_dark_frames(get_frames_of_type(frames, 'DARK'), int(command_line_args.dark_current_threshold), bias_level)
+    bias_mask = image_processing.process_bias_frames(get_frames_of_type(frames, 'BIAS'), int(command_line_args.bias_sigma_threshold))
 
     flats_sorted = image_utils.sort_frames_by_header_values((get_frames_of_type(frames, 'FLAT')), 'FILTER')
-    flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], int(flat_sigma_threshold), bias_level) for filter in flats_sorted.keys()]
+    flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], int(command_line_args.flat_sigma_threshold), bias_level) for filter in flats_sorted.keys()]
 
     flat_masks.extend([bias_mask, dark_mask])
     combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0

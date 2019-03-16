@@ -110,7 +110,8 @@ def get_sci_extensions_from_amplifier(frames, amplifier):
     Given a list of multi-extension FITS files, return a list
     of all SCI extensions for a given amplifier index.
 
-    e.g. For Sinistro, there are 4 amplifiers, and the SCI extensions are indexed
-    0-3.
+    In LCO FITS standard, extensions are indexed by EXTVER.
+    In the case of Sinistro, this is 1-based, so EXTVER values for a
+    multi-extension file range from [1,4]
     """
-    return [get_extensions_by_name(frame, 'SCI')[amplifier] for frame in frames]
+    return [frame for frame in frames if frame.header['EXTVER'] == amplifier]

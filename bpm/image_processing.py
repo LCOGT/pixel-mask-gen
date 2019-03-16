@@ -2,6 +2,7 @@ import numpy as np
 import astropy.stats
 import logging
 import bpm.image_utils as image_utils
+import pdb
 
 logger = logging.getLogger('lco-bpm-maker')
 
@@ -13,7 +14,6 @@ def process_bias_frames(bias_frames, mask_threshold=10):
     :param mask_threshold: Number of standard deviations from the median of the combined bias image
     for a pixel to be flagged as bad. (default 10)
     """
-
     logger.info("Processing {num_frames} bias frames".format(num_frames=len(bias_frames)))
     corrected_frames = []
 
@@ -35,7 +35,6 @@ def process_dark_frames(dark_frames, dark_current_threshold=35, bias_level=None)
     :param bias_level: Bias level for camera (default None)
     If bias_level is None: camera has an overscan region, and bias level will be determined from dark frames
     """
-
     logger.info("Processing {num_frames} dark frames".format(num_frames=len(dark_frames)))
     corrected_frames = []
 
@@ -47,6 +46,12 @@ def process_dark_frames(dark_frames, dark_current_threshold=35, bias_level=None)
 
         image_data -= bias_level
         image_data /= np.float32(frame.header['EXPTIME'])
+
+        if frame.header['GAIN'] == 0:
+            logger.warning("GAIN value from FITS header is 0! [{origname}]".format(origname=frame.header['ORIGNAME']))
+            frame.header['GAIN'] = 1
+
+        image_data /= np.float32(frame.header['GAIN'])
 
         corrected_frames.append(image_data)
 
@@ -63,7 +68,6 @@ def process_flat_frames(flat_frames, mask_threshold=10, bias_level=None):
     :param bias_level: Bias level for camera (default None)
     If bias_level is None: camera has an overscan region, and bias level will be determined from flat frames
     """
-
     logger.info("Processing {num_frames} flat frames taken with filter: {filter}".format(num_frames=len(flat_frames),
                                                                                          filter=flat_frames[0].header['FILTER']))
     corrected_frames = []
