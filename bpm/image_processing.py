@@ -2,7 +2,6 @@ import numpy as np
 import astropy.stats
 import logging
 import bpm.image_utils as image_utils
-import pdb
 
 logger = logging.getLogger('lco-bpm-maker')
 
