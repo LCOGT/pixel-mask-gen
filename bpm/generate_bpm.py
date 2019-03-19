@@ -53,7 +53,6 @@ def generate_bpm():
         multi_extension_frames = [frame for frame in calibration_frames if len(frame) > 1]
         single_extension_frames = [frame[0] for frame in calibration_frames if frame not in multi_extension_frames]
 
-        #Create BPMs!
         process_multi_extension_frames(multi_extension_frames, args)
         process_single_extension_frames(single_extension_frames, args)
     else:
@@ -89,11 +88,10 @@ def process_multi_extension_frames(frames, command_line_args):
         sci_extensions.extend(image_utils.get_extensions_by_name(frame, 'SCI'))
 
     #Sort frames by binning - create a separate BPM for each binning configuration found
-    frames_sorted_by_binning = image_utils.sort_frames_by_header_values([extension for extension in sci_extensions], 'CCDSUM')
+    frames_sorted_by_binning = image_utils.sort_frames_by_header_values(sci_extensions, 'CCDSUM')
 
     logger.info("Beginning processing on {num_frames} calibration frames".format(num_frames = len(frames)))
 
-    #For each binning scheme, create a separate BPM
     for binning in frames_sorted_by_binning.keys():
         frames_sorted = frames_sorted_by_binning[binning]
 

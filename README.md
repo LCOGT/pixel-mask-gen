@@ -50,7 +50,7 @@ optional arguments:
   --dark-current-threshold DARK_CURRENT_THRESHOLD
                         Threshold for pixel dark current when flagging bad
                         pixels in dark frames. Pixels above this will be
-                        flagged. Default = 35 [electrons/second]
+                        flagged. Default = 20 [electrons/second]
 
   --flat-sigma-threshold FLAT_SIGMA_THRESHOLD
                         Number of standard deviations from the median of the
