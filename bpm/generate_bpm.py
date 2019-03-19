@@ -186,13 +186,19 @@ def create_final_mask(frames, command_line_args, camera_has_no_overscan=True):
     """
     From a set of calibration frames, create a final bad pixel mask.
     """
-    bias_level  = image_processing.get_bias_level_from_frames(get_frames_of_type(frames, 'BIAS')) if camera_has_no_overscan else None
+    bias_level = image_processing.get_bias_level_from_frames(get_frames_of_type(frames, 'BIAS')) if camera_has_no_overscan else None
 
-    dark_mask = image_processing.process_dark_frames(get_frames_of_type(frames, 'DARK'), int(command_line_args.dark_current_threshold), bias_level)
-    bias_mask = image_processing.process_bias_frames(get_frames_of_type(frames, 'BIAS'), int(command_line_args.bias_sigma_threshold))
+    dark_mask = image_processing.process_dark_frames(get_frames_of_type(frames, 'DARK'),
+                                                     int(command_line_args.dark_current_threshold),
+                                                     bias_level)
+    bias_mask = image_processing.process_bias_frames(get_frames_of_type(frames, 'BIAS'),
+                                                     int(command_line_args.bias_sigma_threshold))
 
     flats_sorted = image_utils.sort_frames_by_header_values((get_frames_of_type(frames, 'FLAT')), 'FILTER')
-    flat_masks = [image_processing.process_flat_frames(flats_sorted[filter], int(command_line_args.flat_sigma_threshold), bias_level) for filter in flats_sorted.keys()]
+    flat_masks = [image_processing.process_flat_frames(flats_sorted[filter],
+                                                       int(command_line_args.flat_sigma_threshold),
+                                                       bias_level)
+                  for filter in flats_sorted.keys()]
 
     flat_masks.extend([bias_mask, dark_mask])
     combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
