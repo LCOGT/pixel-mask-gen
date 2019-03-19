@@ -31,7 +31,7 @@ def process_dark_frames(dark_frames, dark_current_threshold=35, bias_level=None)
 
     :param dark_frames: List of bias frames to be processed
     :param dark_current_threshold: Threshold for pixel dark current when flagging
-    bad pixels in dark frames. Pixels above this will be flagged. (default 35 (electrons/second))
+    bad pixels in dark frames. Pixels above this will be flagged. (default 20 (electrons/second))
     :param bias_level: Bias level for camera (default None)
     If bias_level is None: camera has an overscan region, and bias level will be determined from dark frames
     """
@@ -47,8 +47,12 @@ def process_dark_frames(dark_frames, dark_current_threshold=35, bias_level=None)
         image_data -= bias_level
         image_data /= np.float32(frame.header['EXPTIME'])
 
-        if frame.header['GAIN'] == 0:
-            logger.warning("GAIN value from FITS header is 0! [{origname}]".format(origname=frame.header['ORIGNAME']))
+        try:
+            if frame.header['GAIN'] == 0:
+                logger.warning("GAIN value from FITS header is 0! [{origname}]".format(origname=frame.header['ORIGNAME']))
+                frame.header['GAIN'] = 1
+        except:
+            logger.warning("GAIN value could not be parsed from header! [{origname}]".format(origname=frame.header['ORIGNAME']))
             frame.header['GAIN'] = 1
 
         image_data /= np.float32(frame.header['GAIN'])
@@ -85,11 +89,10 @@ def process_flat_frames(flat_frames, mask_threshold=10, bias_level=None):
 
     return image_utils.mask_outliers(np.dstack(corrected_frames), mask_threshold)
 
-def get_bias_level_from_frames(bias_frames, header_section='TRIMSEC'):
+def get_bias_level_from_frames(bias_frames):
     """
     Determine camera bias level from a set of bias frames
 
     :param bias_frames: list of bias frames
-    :param header_section: section of image to use to determine bias level, default=Trimsec
     """
-    return np.median([np.median(frame.data[image_utils.get_slices_from_header_section(frame.header[header_section])]) for frame in bias_frames])
+    return np.median([np.median(frame.data) for frame in bias_frames])

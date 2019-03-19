@@ -78,7 +78,7 @@ def process_multi_extension_frames(frames, command_line_args):
         logger.warn("Couldn't parse BIASSEC keyword. Using bias frames to determine camera bias level.")
 
     #Update SCI extensions with required header values for image processing methods
-    header_keywords_to_update = ['OBSTYPE', 'EXPTIME', 'FILTER', 'CCDSUM', 'GAIN', 'ORIGNAME']
+    header_keywords_to_update = ['OBSTYPE', 'EXPTIME', 'FILTER', 'CCDSUM', 'ORIGNAME']
 
     for keyword in header_keywords_to_update:
         image_utils.apply_header_value_to_all_extensions(frames, keyword)
@@ -88,8 +88,7 @@ def process_multi_extension_frames(frames, command_line_args):
     for frame in frames:
         sci_extensions.extend(image_utils.get_extensions_by_name(frame, 'SCI'))
 
-    #Sort frames by binning
-    #Only use the PrimaryHDU for each image -
+    #Sort frames by binning - create a separate BPM for each binning configuration found
     frames_sorted_by_binning = image_utils.sort_frames_by_header_values([extension for extension in sci_extensions], 'CCDSUM')
 
     logger.info("Beginning processing on {num_frames} calibration frames".format(num_frames = len(frames)))
@@ -165,11 +164,14 @@ def write_bpm_to_file(masks, output_directory, header):
     today_date = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H%M%S")
     output_filename = os.path.join(output_directory, "bpm-{instrument}-{bin_type}-{today}.fits".format(instrument=header['INSTRUME'],
                                                                                                        today=today_date,
-                                                                                                       bin_type=header['CCDSUM'].replace(" ", "x")))
-    # pdb.set_trace()
+                                                                                               bin_type=header['CCDSUM'].replace(" ", "x")))
     if len(masks.shape) > 2:
-        image_hdus = [fits.ImageHDU(data=masks[:,:,i].astype(np.uint8), header=header) for i in range(0, masks.shape[2])]
-        hdu_list = fits.HDUList([fits.PrimaryHDU(header=header)] + image_hdus)
+        hdu_list = fits.HDUList([fits.PrimaryHDU(header=header)])
+
+        for extnum in range (0, masks.shape[2]):
+            header['EXTVER'] = extnum + 1
+            hdu_list.append(fits.ImageHDU(data=masks[:,:,extnum].astype(np.uint8), header=header))
+
         hdu_list.writeto(output_filename)
     else:
         fits.writeto(filename=output_filename,

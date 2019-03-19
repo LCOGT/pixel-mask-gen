@@ -4,8 +4,8 @@ import bpm.image_processing as image_processing
 import bpm.image_utils as image_utils
 
 def generate_test_bias_frame(bad_pixel_locations):
-    hdr = fits.Header([('BIASSEC', '[95:100, 1:100]'),
-                       ('TRIMSEC', '[1:94, 1:100]')])
+    hdr = fits.Header({'BIASSEC': '[95:100, 1:100]',
+                       'TRIMSEC': '[1:94, 1:100]'})
 
     overscan_slices = image_utils.get_slices_from_header_section(hdr['BIASSEC'])
 
@@ -16,9 +16,9 @@ def generate_test_bias_frame(bad_pixel_locations):
     return fits.ImageHDU(data=bias_frame, header=hdr)
 
 def generate_test_flat_frame(bad_pixel_locations, image_mean, image_std):
-    hdr = fits.Header([('FILTER', 'w'),
-                       ('BIASSEC', '[95:100, 1:100]'),
-                       ('TRIMSEC', '[1:94, 1:100]')])
+    hdr = fits.Header({'FILTER': 'w',
+                       'BIASSEC': '[95:100, 1:100]',
+                       'TRIMSEC': '[1:94, 1:100]'})
 
     overscan_slices = image_utils.get_slices_from_header_section(hdr['BIASSEC'])
 
@@ -29,9 +29,10 @@ def generate_test_flat_frame(bad_pixel_locations, image_mean, image_std):
     return fits.ImageHDU(data=flat_frame, header=hdr)
 
 def generate_test_dark_frame(bad_pixel_locations):
-    hdr = fits.Header([('BIASSEC', '[95:100, 1:100]'),
-                       ('TRIMSEC', '[1:94, 1:100]'),
-                       ('EXPTIME', '10.0')])
+    hdr = fits.Header({'BIASSEC': '[95:100, 1:100]',
+                       'TRIMSEC': '[1:94, 1:100]',
+                       'EXPTIME': '10.0',
+                       'GAIN': '1.0'})
 
     dark_frame = np.round(np.random.normal(30, 5, (100,100)))
     dark_frame[bad_pixel_locations] = 1000
