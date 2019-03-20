@@ -114,6 +114,8 @@ def process_multi_extension_frames(frames, command_line_args):
                               'DAY-OBS': frames[0][0].header['DAY-OBS'],
                               'CCDSUM': binning,
                               'SITEID': frames[0][0].header['SITEID'],
+                              'ENCID': frames[0][0].header['ENCID'],
+                              'TELID': frames[0][0].header['TELID'],
                               'INSTRUME': frames[0][0].header['INSTRUME'],
                               'DATE-OBS': datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]})
 
@@ -149,6 +151,8 @@ def process_single_extension_frames(frames, command_line_args):
                               'DAY-OBS': frames[0].header['DAY-OBS'],
                               'CCDSUM': binning,
                               'SITEID': frames[0].header['SITEID'],
+                              'ENCID': frames[0].header['ENCID'],
+                              'TELID': frames[0].header['TELID'],
                               'INSTRUME': frames[0].header['INSTRUME'],
                               'DATE-OBS': datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]})
 
@@ -170,7 +174,7 @@ def write_bpm_to_file(masks, output_directory, header):
             header['EXTVER'] = extnum + 1
             hdu_list.append(fits.ImageHDU(data=masks[:,:,extnum].astype(np.uint8), header=header))
 
-        hdu_list.writeto(output_filename)
+        hdu_list.writeto(output_filename, checksum=True)
     else:
         fits.writeto(filename=output_filename,
                      data=masks.astype(np.uint8),
