@@ -1,5 +1,8 @@
 import numpy as np
 import astropy.stats
+import astropy.io.fits as fits
+import os
+import tempfile
 
 def mask_outliers(stacked_frames, mask_threshold=10):
     """
@@ -61,3 +64,67 @@ def split_slice(pixel_section):
         else:
             pixel_slice = slice(int(pixels[0]) - 1, int(pixels[1]) - 2, -1)
     return pixel_slice
+
+def get_image_extensions(fits_hdulist, name='SCI'):
+    """
+    Get a list of the image extensions for a FITS file.
+
+    For multi-extension FITS, this will return an HDUList of all SCI extensions.
+
+    For single-extension FITS with the image on the PrimaryHDU, this will simply return
+    an HDUList with a that single HDU.
+    """
+    extension_info = fits_hdulist.info(False)
+    image_extensions = [fits_hdulist[ext[0]] for ext in extension_info if ext[1] == name]
+    if not image_extensions:
+        return fits_hdulist
+    else:
+        return fits.HDUList(image_extensions)
+
+
+def apply_header_value_to_all_extensions(frames, header_keyword):
+    """
+    Apply a header value from an image's PrimaryHDU to its
+    extensions.
+    """
+    for frame in frames:
+        header_value = frame[0].header[header_keyword]
+        for extension_num in range(1, len(frame)):
+            frame[extension_num].header[header_keyword] = header_value
+
+
+def sort_frames_by_header_values(frames, header_keyword):
+    """
+    Given a set of frames and a header keyword, sort the frames by the corresponding
+    header values into a form:
+    {header_value:[frames_with_header_value]}
+    """
+    header_values = set([frame.header.get(header_keyword) for frame in frames])
+    return {value: [frame for frame in frames if frame.header.get(header_keyword) == value]
+                    for value in header_values}
+
+
+def open_fits_file(filename):
+    """
+    Load a fits file
+    Parameters
+    ----------
+    filename: str
+              File name/path to open
+    Returns
+    -------
+    hdulist: astropy.io.fits
+    Notes
+    -----
+    This is a wrapper to astropy.io.fits.open but funpacks the file first.
+    """
+    base_filename, file_extension = os.path.splitext(os.path.basename(filename))
+    if file_extension == '.fz':
+        with tempfile.TemporaryDirectory() as tmpdirname:
+            output_filename = os.path.join(tmpdirname, base_filename)
+            os.system('funpack -O {0} {1}'.format(output_filename, filename))
+            hdulist = fits.open(output_filename, 'readonly')
+    else:
+        hdulist = fits.open(filename, 'readonly')
+
+    return hdulist
