@@ -59,4 +59,7 @@ optional arguments:
   --bias-sigma-threshold BIAS_SIGMA_THRESHOLD
                         Number of standard deviations from the median of the
                         combined bias image for a pixel to be flagged. Default = 10
+                        
+  --fpack               Flag to fpack output BPM
+
 ```

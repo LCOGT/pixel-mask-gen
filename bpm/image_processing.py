@@ -46,15 +46,16 @@ def process_dark_frames(dark_frames, dark_current_threshold=35, bias_level=None)
         image_data -= bias_level
         image_data /= np.float32(frame.header['EXPTIME'])
 
-        try:
-            if frame.header['GAIN'] == 0:
-                logger.warning("GAIN value from FITS header is 0! [{origname}]".format(origname=frame.header['ORIGNAME']))
-                frame.header['GAIN'] = 1
-        except:
-            logger.warning("GAIN value could not be parsed from header! [{origname}]".format(origname=frame.header['ORIGNAME']))
-            frame.header['GAIN'] = 1
+        gain = frame.header.get('GAIN')
 
-        image_data /= np.float32(frame.header['GAIN'])
+        if gain == 0:
+            logger.error("GAIN value from FITS header is 0! Skipping image. [{origname}]".format(origname=frame.header['ORIGNAME']))
+            continue
+        elif gain == None:
+            logger.error("GAIN keyword not present in FITS header. Skipping image [{origname}]".format(origname=frame.header['ORIGNAME']))
+            continue
+
+        image_data /= np.float32(gain)
 
         corrected_frames.append(image_data)
 

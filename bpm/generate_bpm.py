@@ -1,6 +1,8 @@
 import astropy.io.fits as fits
 import os
+import shutil
 import datetime
+import tempfile
 import glob
 import logging
 import lcogt_logging
@@ -34,6 +36,7 @@ def parse_args():
     parser.add_argument('--bias-sigma-threshold', dest='bias_sigma_threshold',
                         help='Number of standard deviations from the median of the combined bias image for a pixel to be flagged as bad. Default = 10',
                         default=10)
+    parser.add_argument('--fpack', dest='fpack_flag', action='store_true', help='Flag to fpack output BPM')
 
     args = parser.parse_args()
 
@@ -44,142 +47,98 @@ def generate_bpm():
     args = parse_args()
     setup_logging(getattr(logging, args.log_level))
 
-    calibration_frames = get_calibration_frames(os.path.normpath(args.input_directory) + '/*.fits')
+    calibration_frames = get_calibration_frames(os.path.normpath(args.input_directory) + '/*.fits*')
 
     if calibration_frames:
         if len(set([frame[0].header['INSTRUME'] for frame in calibration_frames])) != 1:
             raise RuntimeError("Got calibration frames from more than one camera. Aborting.")
 
-        multi_extension_frames = [frame for frame in calibration_frames if len(frame) > 1]
-        single_extension_frames = [frame[0] for frame in calibration_frames if frame not in multi_extension_frames]
-
-        process_multi_extension_frames(multi_extension_frames, args)
-        process_single_extension_frames(single_extension_frames, args)
+        logger.info("Beginning processing on {num_frames} calibration frames".format(num_frames = len(calibration_frames)))
+        process_frames(calibration_frames, args)
     else:
         raise RuntimeError("No calibration frames could be found. Check that the directory contains calibration frames.")
 
 
-def process_multi_extension_frames(frames, command_line_args):
+def process_frames(frames, command_line_args):
     """
-    Process a set of multi-extension FITS frames into bad pixel mask(s).
+    Process a set of calibration frames into bad pixel mask(s).
     """
-    if len(frames) == 0:
-        return
+    logger.info("Processing {num_frames} calibration frames.".format(num_frames=len(frames)))
 
-    #determine number of amplifiers from image
-    n_amplifiers = len(image_utils.get_extensions_by_name(frames[0], 'SCI'))
+    #use the first frame to determine the structure of all frames
+    reference_hdu_list = frames[0]
 
-    camera_has_no_overscan = True
-    try:
-        bias_section = image_utils.get_slices_from_header_section(frames[0][1].header['BIASSEC'])
-        camera_has_no_overscan = False
-    except:
-        logger.warn("Couldn't parse BIASSEC keyword. Using bias frames to determine camera bias level.")
-
-    #Update SCI extensions with required header values for image processing methods
+    #Update all extensions with required header values for image processing methods
     header_keywords_to_update = ['OBSTYPE', 'EXPTIME', 'FILTER', 'CCDSUM', 'ORIGNAME']
-
     for keyword in header_keywords_to_update:
         image_utils.apply_header_value_to_all_extensions(frames, keyword)
 
-    #Extract all sci extensions
-    sci_extensions = []
+    #retrieve all image extensions - any extension containing image data
+    image_extensions = []
     for frame in frames:
-        sci_extensions.extend(image_utils.get_extensions_by_name(frame, 'SCI'))
+        image_extensions.extend(image_utils.get_image_extensions(frame))
 
-    #Sort frames by binning - create a separate BPM for each binning configuration found
-    frames_sorted_by_binning = image_utils.sort_frames_by_header_values(sci_extensions, 'CCDSUM')
-
-    logger.info("Beginning processing on {num_frames} calibration frames".format(num_frames = len(frames)))
-
-    for binning in frames_sorted_by_binning.keys():
-        frames_sorted = frames_sorted_by_binning[binning]
-
-        #Treat each amplifier as a separate image - create one mask for each
-        #In LCO FITS standard, amplifiers are 1-indexed (1-4) by EXTVER keyword
-        masks = []
-        for amplifier in range(1, n_amplifiers+1):
-            amplifier_frames = image_utils.get_sci_extensions_from_amplifier(frames_sorted, amplifier)
-
-            combined_mask = create_final_mask(amplifier_frames,
-                                              command_line_args,
-                                              camera_has_no_overscan)
-
-            logger.info("Created mask for extension {extnum}".format(extnum=amplifier))
-            masks.append(combined_mask)
-
-        mask_stack = np.dstack(masks)
-
-        header = fits.Header({'OBSTYPE': 'BPM',
-                              'DAY-OBS': frames[0][0].header['DAY-OBS'],
-                              'CCDSUM': binning,
-                              'SITEID': frames[0][0].header['SITEID'],
-                              'ENCID': frames[0][0].header['ENCID'],
-                              'TELID': frames[0][0].header['TELID'],
-                              'INSTRUME': frames[0][0].header['INSTRUME'],
-                              'DATE-OBS': datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]})
-
-        write_bpm_to_file(mask_stack, command_line_args.output_directory, header)
-
-
-def process_single_extension_frames(frames, command_line_args):
-    """
-    Process a set of single-extension FITS frames into bad pixel mask(s).
-    """
-    if len(frames) == 0:
-        return
-
-    #check if camera has an overscan region
+    #check camera for overscan region
     camera_has_no_overscan = True
     try:
-        bias_section = image_utils.get_slices_from_header_section(frames[0].header['BIASSEC'])
+        bias_section = image_utils.get_slices_from_header_section(image_extensions[0].header['BIASSEC'])
         camera_has_no_overscan = False
     except:
         logger.warn("Couldn't parse BIASSEC keyword. Using bias frames to determine camera bias level.")
 
-    frames_sorted_by_binning = image_utils.sort_frames_by_header_values(frames, 'CCDSUM')
+    # sort frames by binning
+    frames_sorted_by_binning = image_utils.sort_frames_by_header_values(image_extensions, 'CCDSUM')
 
-    logger.info("Beginning processing on {num_frames} calibration frames".format(num_frames = len(frames)))
     for binning in frames_sorted_by_binning.keys():
-        frames_sorted = frames_sorted_by_binning[binning]
+        frames_sorted_by_extver = image_utils.sort_frames_by_header_values(frames_sorted_by_binning[binning],
+                                                                           'EXTVER')
+        masks = []
+        for extver in frames_sorted_by_extver.keys():
+            combined_mask = create_final_mask(frames_sorted_by_extver[extver],
+                                              command_line_args,
+                                              camera_has_no_overscan)
 
-        combined_mask = create_final_mask(frames_sorted,
-                                          command_line_args,
-                                          camera_has_no_overscan)
-
-        header = fits.Header({'OBSTYPE': 'BPM',
-                              'DAY-OBS': frames[0].header['DAY-OBS'],
-                              'CCDSUM': binning,
-                              'SITEID': frames[0].header['SITEID'],
-                              'ENCID': frames[0].header['ENCID'],
-                              'TELID': frames[0].header['TELID'],
-                              'INSTRUME': frames[0].header['INSTRUME'],
-                              'DATE-OBS': datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3]})
-
-        write_bpm_to_file(combined_mask, command_line_args.output_directory, header)
+            masks.append(combined_mask)
 
 
-def write_bpm_to_file(masks, output_directory, header):
+        mask_stack = np.dstack(masks)
+        reference_hdu_list[0].header.update({'DATE_OBS': datetime.datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3],
+                                             'CCDSUM': binning,
+                                             'OBSTYPE': 'BPM'})
+
+
+        write_bpm_to_file(mask_stack, command_line_args.output_directory, command_line_args.fpack_flag ,reference_hdu_list)
+
+
+def write_bpm_to_file(masks, output_directory, fpack, reference_hdu_list):
     """
     Write output BPM to file.
     """
+    primary_header = reference_hdu_list[0].header
     today_date = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H%M%S")
-    output_filename = os.path.join(output_directory, "bpm-{instrument}-{bin_type}-{today}.fits".format(instrument=header['INSTRUME'],
-                                                                                                       today=today_date,
-                                                                                               bin_type=header['CCDSUM'].replace(" ", "x")))
-    if len(masks.shape) > 2:
-        hdu_list = fits.HDUList([fits.PrimaryHDU(header=header)])
+    output_filename = "bpm-{instrument}-{bin_type}-{today}.fits".format(instrument=primary_header['INSTRUME'],
+                                                                        today=today_date,
+                                                                        bin_type=primary_header['CCDSUM'].replace(" ", "x"))
 
-        for extnum in range (0, masks.shape[2]):
-            header['EXTVER'] = extnum + 1
-            hdu_list.append(fits.ImageHDU(data=masks[:,:,extnum].astype(np.uint8), header=header))
-
-        hdu_list.writeto(output_filename, checksum=True)
+    if len(reference_hdu_list) == 1:
+        output_bpm = fits.HDUList([fits.PrimaryHDU(header=primary_header, data=masks[:,:,0])])
     else:
-        fits.writeto(filename=output_filename,
-                     data=masks.astype(np.uint8),
-                     header=header,
-                     checksum=True)
+        output_bpm = fits.HDUList([fits.PrimaryHDU(header=primary_header)])
+        for ext_num in range(1, len(reference_hdu_list)):
+            bpm_data = masks[:,:,ext_num-1]
+            hdu = fits.ImageHDU(header=reference_hdu_list[ext_num].header,
+                                data=bpm_data)
+            hdu.header['OBSTYPE'] = 'BPM'
+            hdu.header['EXTVER'] = ext_num
+            output_bpm.append(hdu)
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        output_bpm.writeto(os.path.join(temp_dir, output_filename), overwrite=True, output_verify='fix+warn')
+        if fpack:
+            command = 'fpack -q 64 {temp_dir}/{basename}'
+            os.system(command.format(temp_dir=temp_dir, basename=output_filename))
+            output_filename += '.fz'
+        shutil.move(os.path.join(temp_dir, output_filename), output_directory)
 
     logger.info("Finished processing. BPM written to {file_path}".format(file_path=output_filename))
 
@@ -205,7 +164,7 @@ def create_final_mask(frames, command_line_args, camera_has_no_overscan=True):
     flat_masks.extend([bias_mask, dark_mask])
     combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
 
-    return combined_mask
+    return np.uint8(combined_mask)
 
 
 def get_calibration_frames(path_to_frames, calibration_types=['d00', 'f00', 'b00']):
@@ -213,7 +172,7 @@ def get_calibration_frames(path_to_frames, calibration_types=['d00', 'f00', 'b00
     Given a directory of fits files, return a list of calibration frames
     """
     frames = glob.glob(path_to_frames)
-    frames = [fits.open(frame, mode='readonly') for frame in frames if any(obs_type in frame for obs_type in calibration_types)]
+    frames = [image_utils.open_fits_file(frame) for frame in frames if any(obs_type in frame for obs_type in calibration_types)]
     return frames
 
 
