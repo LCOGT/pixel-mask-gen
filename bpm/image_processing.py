@@ -52,7 +52,7 @@ def process_dark_frames(dark_frames, dark_current_threshold=35, bias_level=None)
             logger.error("GAIN value from FITS header is 0! Skipping image. [{origname}]".format(origname=frame.header['ORIGNAME']))
             continue
         elif gain == None:
-            logger.error("GAIN keyword not present in FITS header. Skipping image [{origname}]".format(origname=frame.header['ORIGNAME']))
+            logger.error("GAIN keyword not present in FITS header. Skipping image. [{origname}]".format(origname=frame.header['ORIGNAME']))
             continue
 
         image_data /= np.float32(gain)

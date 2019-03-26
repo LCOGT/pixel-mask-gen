@@ -53,7 +53,6 @@ def generate_bpm():
         if len(set([frame[0].header['INSTRUME'] for frame in calibration_frames])) != 1:
             raise RuntimeError("Got calibration frames from more than one camera. Aborting.")
 
-        logger.info("Beginning processing on {num_frames} calibration frames".format(num_frames = len(calibration_frames)))
         process_frames(calibration_frames, args)
     else:
         raise RuntimeError("No calibration frames could be found. Check that the directory contains calibration frames.")
@@ -93,12 +92,13 @@ def process_frames(frames, command_line_args):
         frames_sorted_by_extver = image_utils.sort_frames_by_header_values(frames_sorted_by_binning[binning],
                                                                            'EXTVER')
         masks = []
-        for extver in frames_sorted_by_extver.keys():
+        for extnum, extver in enumerate(frames_sorted_by_extver.keys()):
             combined_mask = create_final_mask(frames_sorted_by_extver[extver],
                                               command_line_args,
                                               camera_has_no_overscan)
 
             masks.append(combined_mask)
+            logger.info("Created BPM for extension {extension_number}.".format(extension_number=extnum))
 
 
         mask_stack = np.dstack(masks)
