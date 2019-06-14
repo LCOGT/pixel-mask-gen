@@ -3,6 +3,9 @@ import astropy.stats
 import astropy.io.fits as fits
 import os
 import tempfile
+import logging
+
+logger = logging.getLogger('lco-bpm-maker')
 
 def mask_outliers(stacked_frames, mask_threshold=10):
     """
@@ -88,7 +91,10 @@ def apply_header_value_to_all_extensions(frames, header_keyword):
     extensions.
     """
     for frame in frames:
-        header_value = frame[0].header[header_keyword]
+        header_value = frame[0].header.get(header_keyword, None)
+        if not header_value:
+            logger.warn("Header keyword {keyword} not found".format(keyword=header_keyword))
+            continue 
         for extension_num in range(1, len(frame)):
             frame[extension_num].header[header_keyword] = header_value
 

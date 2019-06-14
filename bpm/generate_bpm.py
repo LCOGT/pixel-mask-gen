@@ -155,14 +155,7 @@ def create_final_mask(frames, command_line_args, camera_has_no_overscan=True):
     bias_mask = image_processing.process_bias_frames(get_frames_of_type(frames, 'BIAS'),
                                                      int(command_line_args.bias_sigma_threshold))
 
-    flats_sorted = image_utils.sort_frames_by_header_values((get_frames_of_type(frames, 'FLAT')), 'FILTER')
-    flat_masks = [image_processing.process_flat_frames(flats_sorted[filter],
-                                                       int(command_line_args.flat_sigma_threshold),
-                                                       bias_level)
-                  for filter in flats_sorted.keys()]
-
-    flat_masks.extend([bias_mask, dark_mask])
-    combined_mask = np.sum(np.dstack(flat_masks), axis=2) > 0
+    combined_mask = np.sum(np.dstack([dark_mask, bias_mask]), axis=2) > 0
 
     return np.uint8(combined_mask)
 
