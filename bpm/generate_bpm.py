@@ -106,8 +106,11 @@ def process_frames(frames, command_line_args):
                                              'CCDSUM': binning,
                                              'OBSTYPE': 'BPM'})
 
+        #Update all extensions' EXTNAME to BPM for BANZAI compatibility.
+        for hdu in reference_hdu_list:
+            hdu.header.update({'EXTNAME': 'BPM'})
 
-        write_bpm_to_file(mask_stack, command_line_args.output_directory, command_line_args.fpack_flag ,reference_hdu_list)
+        write_bpm_to_file(mask_stack, command_line_args.output_directory, command_line_args.fpack_flag, reference_hdu_list)
 
 
 def write_bpm_to_file(masks, output_directory, fpack, reference_hdu_list):
