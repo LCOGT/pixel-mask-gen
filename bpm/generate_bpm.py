@@ -118,10 +118,12 @@ def write_bpm_to_file(masks, output_directory, fpack, reference_hdu_list):
     Write output BPM to file.
     """
     primary_header = reference_hdu_list[0].header
-    today_date = datetime.datetime.utcnow().strftime("%Y-%m-%dT%H%M%S")
-    output_filename = "bpm-{instrument}-{bin_type}-{today}.fits".format(instrument=primary_header['INSTRUME'],
-                                                                        today=today_date,
-                                                                        bin_type=primary_header['CCDSUM'].replace(" ", "x"))
+    today_date = datetime.datetime.utcnow().strftime("%Y%m%d")
+    output_filename = "{site}{telescope}-{instrument}-{today}-bpm-bin{bin_type}.fits".format(site=primary_header['SITEID'],
+                                                                                             telescope=primary_header['TELESCOP'].replace("-", ""),
+                                                                                             instrument=primary_header['INSTRUME'],
+                                                                                             today=today_date,
+                                                                                             bin_type=primary_header['CCDSUM'].replace(" ", "x"))
 
     if len(reference_hdu_list) == 1:
         output_bpm = fits.HDUList([fits.PrimaryHDU(header=primary_header, data=masks[:,:,0])])
